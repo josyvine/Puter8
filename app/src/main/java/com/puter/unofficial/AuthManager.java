@@ -83,4 +83,4 @@ public class AuthManager {
                url.contains("auth_success") || 
                url.contains("signed_in=true");
     }
-} 
+}
