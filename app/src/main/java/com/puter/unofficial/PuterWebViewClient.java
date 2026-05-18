@@ -4,13 +4,17 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.webkit.CookieManager;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.util.Log;
 
+import androidx.webkit.WebViewAssetLoader;
+
 /**
  * Custom WebViewClient for Puter Unofficial.
- * This class intercepts URL loads to detect successful authentication redirects
+ * This class intercepts URL loads to detect successful authentication redirects,
+ * manages the virtual HTTPS asset routing via WebViewAssetLoader,
  * and ensures that Puter.js session cookies are persisted correctly.
  */
 public class PuterWebViewClient extends WebViewClient {
@@ -18,13 +22,34 @@ public class PuterWebViewClient extends WebViewClient {
     private static final String TAG = "PuterWebViewClient";
     private final Context context;
     private final AuthManager authManager;
+    private final WebViewAssetLoader assetLoader;
     
     // Guard variable to prevent the "Blinking Loop"
     private String lastHandledAuthUrl = "";
 
+    /**
+     * Constructor for the PuterWebViewClient.
+     * Initializes the WebViewAssetLoader to handle the virtual HTTPS origin.
+     */
     public PuterWebViewClient(Context context) {
         this.context = context;
         this.authManager = AuthManager.getInstance(context);
+
+        // FIX: Configure the AssetLoader to serve local assets over a virtual HTTPS domain.
+        // This is the key fix for Puter.js authentication persistence.
+        this.assetLoader = new WebViewAssetLoader.Builder()
+                .setDomain("appassets.androidplatform.net")
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(context))
+                .build();
+    }
+
+    /**
+     * Intercepts requests to the virtual domain and serves them from local assets.
+     */
+    @Override
+    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+        // This routes https://appassets.androidplatform.net/assets/... to the assets folder
+        return assetLoader.shouldInterceptRequest(request.getUrl());
     }
 
     /**
