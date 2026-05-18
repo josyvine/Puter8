@@ -1,12 +1,18 @@
 package com.puter.unofficial;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Message;
 import android.provider.MediaStore;
+import android.util.Log;
+import android.view.ViewGroup;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.RelativeLayout;
 
 import androidx.core.content.FileProvider;
 
@@ -14,21 +20,72 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Locale; // FIXED: Added missing Locale import
+import java.util.Locale;
 
 /**
  * Handles the native file upload functionality (Camera, Gallery, File Picker)
  * for the WebView, enabling Base64 upload support for Puter AI interactions.
+ * ADDED: Support for popup windows required by the Puter.js auth SDK.
  */
 public class MyWebChromeClient extends WebChromeClient {
 
     private ValueCallback<Uri[]> uploadMessage;
     private final Activity activity;
     private String currentPhotoPath;
+    private Dialog authDialog; // Dialog to host the login popup WebView
 
     public MyWebChromeClient(Activity activity) {
         this.activity = activity;
     }
+
+    // --- NEW: SDK AUTH POPUP HANDLER ---
+
+    /**
+     * Handles the 'window.open()' call from puter.auth.signIn().
+     * This creates a new WebView in a Dialog to show the login page.
+     */
+    @Override
+    public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+        WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+        
+        // Create a new WebView for the popup
+        final WebView popupWebView = new WebView(activity);
+        
+        // Configure the popup WebView
+        WebSettings webSettings = popupWebView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
+        
+        // Use the same client to handle redirects within the popup
+        popupWebView.setWebViewClient(new PuterWebViewClient(activity));
+
+        // Create a dialog to display the popup WebView
+        authDialog = new Dialog(activity, android.R.style.Theme_DeviceDefault_NoActionBar);
+        authDialog.setContentView(popupWebView);
+        authDialog.show();
+        
+        // Set the new WebView as the target for the transport
+        transport.setWebView(popupWebView);
+        resultMsg.sendToTarget();
+        
+        Log.d(AppConstants.TAG_AUTH, "onCreateWindow: Handled Puter auth popup.");
+        return true;
+    }
+
+    /**
+     * Handles 'window.close()' from the auth popup after login is complete.
+     */
+    @Override
+    public void onCloseWindow(WebView window) {
+        if (authDialog != null && authDialog.isShowing()) {
+            authDialog.dismiss();
+            authDialog = null;
+        }
+        super.onCloseWindow(window);
+        Log.d(AppConstants.TAG_AUTH, "onCloseWindow: Closed Puter auth popup.");
+    }
+
+    // --- EXISTING: FILE UPLOAD LOGIC (UNCHANGED) ---
 
     @Override
     public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
