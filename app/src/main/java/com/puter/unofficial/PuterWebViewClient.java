@@ -18,6 +18,9 @@ public class PuterWebViewClient extends WebViewClient {
     private static final String TAG = "PuterWebViewClient";
     private final Context context;
     private final AuthManager authManager;
+    
+    // Guard variable to prevent the "Blinking Loop"
+    private String lastHandledAuthUrl = "";
 
     public PuterWebViewClient(Context context) {
         this.context = context;
@@ -33,9 +36,13 @@ public class PuterWebViewClient extends WebViewClient {
         Log.d(TAG, "Loading URL: " + url);
 
         // Check if this URL is a Puter authentication success callback
-        if (authManager.isAuthCallback(url)) {
+        // Added a check to see if we've already handled this specific callback to stop reload loops
+        if (authManager.isAuthCallback(url) && !url.equals(lastHandledAuthUrl)) {
             Log.i(TAG, "Authentication successful redirect detected.");
             
+            // Mark this URL as handled to prevent the "blinking" recursive loop
+            lastHandledAuthUrl = url;
+
             // Persist the login state immediately
             authManager.setLoggedIn(true);
             
@@ -76,8 +83,12 @@ public class PuterWebViewClient extends WebViewClient {
         if (url.startsWith(AppConstants.LOCAL_INDEX_URL)) {
             // Use evaluateJavascript for better performance and error handling
             view.post(() -> {
+                // Ensure updateAuthUI is called only when the page is fully ready
                 view.evaluateJavascript("if(window.updateAuthUI) { window.updateAuthUI(); }", null);
             });
+            
+            // Reset the auth URL guard once we are back at the home index
+            lastHandledAuthUrl = "";
         }
     }
 
