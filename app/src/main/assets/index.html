@@ -155,6 +155,7 @@
     </div>
     <ul class="dropdown" id="puterDropdownMenu">
       <li id="authOption" onclick="handleAuthAction()">Sign In</li>
+      <li id="modelSourceToggle" onclick="toggleModelSource()">Enable Live Models</li>
       <li onclick="openModal('customModal')">Custom Instruction</li>
       <li onclick="openModal('historyModal')">View History</li>
       <li onclick="newSession()">New Session</li>
@@ -269,6 +270,7 @@
     let customInstruction = localStorage.getItem('puter_custom_ins') || "";
     let globalSelectedModel = ""; // Replaces the select.value logic
     let lastAuthStatus = null; // Guard to prevent UI Blinking loops
+    let isLiveMode = false; // Persistent preference for Local vs Live models
 
     /* --- HISTORY & CONTEXT STATE --- */
     let chatHistory = JSON.parse(localStorage.getItem('puter_chat_history') || "[]");
@@ -329,28 +331,34 @@
         document.getElementById('accordionMenu').classList.remove('show');
     }
 
-    // 1. Load Categorized Models into Custom Slider UI
-    function loadModels() {
-      try {
-        if (!window.AndroidInterface) {
-            console.warn("Waiting for AndroidInterface to load models...");
-            return;
-        }
-        
-        const jsonString = window.AndroidInterface.getLocalJson("models.json");
-        if (!jsonString || jsonString === "{}" || jsonString.trim() === "") {
-            throw new Error("Native bridge returned empty or invalid string.");
-        }
+    /**
+     * Requirement #7 - Normalizes Puter API response into 
+     * Provider > Model structure used by current UI.
+     */
+    function normalizeModels(rawModels) {
+        if (!rawModels) return {};
+        // If already grouped (Local JSON format)
+        if (!Array.isArray(rawModels)) return rawModels;
 
-        const providers = JSON.parse(jsonString);
+        const grouped = {};
+        rawModels.filter(m => m && m.id).forEach(model => {
+            const provider = model.provider || model.vendor || "other";
+            if (!grouped[provider]) grouped[provider] = [];
+            grouped[provider].push(model);
+        });
+        return grouped;
+    }
 
+    /**
+     * Requirement #7 - Unified Rendering Logic
+     * Preserves: Parents, Categories, and Metadata.
+     */
+    function renderModelAccordion(providers) {
         let allModels = [];
         let categoriesSet = new Set();
 
-        // Flatten the data and collect unique categories
         for (const providerKey in providers) {
             const providerModels = providers[providerKey].map(model => {
-                // Ensure categories exist and add them to our Set
                 if(model.categories) {
                     model.categories.forEach(cat => categoriesSet.add(cat));
                 }
@@ -359,76 +367,112 @@
             allModels = allModels.concat(providerModels);
         }
 
-        // Sort all models A-Z
-        allModels.sort((a, b) => a.name.localeCompare(b.name));
+        allModels.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 
         let html = '';
 
-        // --- SLIDER 1: ALL MODELS ---
+        // SLIDER 1: ALL MODELS
         html += `<div class="acc-section">
                     <div class="acc-header" onclick="toggleAcc('acc-all')">All Models <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span></div>
                     <div id="acc-all" class="acc-content">`;
         allModels.forEach(m => {
             const safeName = (m.name || m.id).replace(/'/g, "\\'");
-            html += `<div class="model-item" onclick="selectModel('${m.id}', '${safeName}')">${m.name || m.id}</div>`;
+            const cats = m.categories ? ` (${m.categories.join(', ')})` : '';
+            html += `<div class="model-item" onclick="selectModel('${m.id}', '${safeName}')">${m.name || m.id}${cats}</div>`;
         });
-        html += `   </div>
-                 </div>`;
+        html += `   </div></div>`;
 
-        // --- SLIDER 2: BY PARENT/PROVIDER ---
+        // SLIDER 2: BY PARENT
         html += `<div class="acc-section">
                     <div class="acc-header" onclick="toggleAcc('acc-parents')">By Parent <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span></div>
                     <div id="acc-parents" class="acc-content">`;
         for(const provider in providers) {
             let pId = 'prov-' + provider.replace(/[^a-zA-Z0-9]/g, '-');
-            let displayName = provider.toUpperCase();
-            
-            html += `<div class="acc-sub-header" onclick="toggleAcc('${pId}')">${displayName} <span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></div>
+            html += `<div class="acc-sub-header" onclick="toggleAcc('${pId}')">${provider.toUpperCase()} <span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></div>
                      <div id="${pId}" class="acc-sub-content">`;
-            
             providers[provider].forEach(m => {
                 const safeName = (m.name || m.id).replace(/'/g, "\\'");
                 html += `<div class="model-item" onclick="selectModel('${m.id}', '${safeName}')">${m.name || m.id}</div>`;
             });
             html += `</div>`;
         }
-        html += `   </div>
-                 </div>`;
+        html += `   </div></div>`;
 
-        // --- SLIDER 3: BY CATEGORY ---
+        // SLIDER 3: BY CATEGORY
         html += `<div class="acc-section">
                     <div class="acc-header" onclick="toggleAcc('acc-cat')">By Category <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span></div>
                     <div id="acc-cat" class="acc-content">`;
         categoriesSet.forEach(cat => {
             let cId = 'cat-' + cat.replace(/[^a-zA-Z0-9]/g, '-');
-            let displayName = cat.replace(/_/g, ' ').toUpperCase();
-            
-            html += `<div class="acc-sub-header" onclick="toggleAcc('${cId}')">${displayName} <span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></div>
+            html += `<div class="acc-sub-header" onclick="toggleAcc('${cId}')">${cat.replace(/_/g, ' ').toUpperCase()} <span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></div>
                      <div id="${cId}" class="acc-sub-content">`;
-            
             allModels.filter(m => m.categories && m.categories.includes(cat)).forEach(m => {
                 const safeName = (m.name || m.id).replace(/'/g, "\\'");
                 html += `<div class="model-item" onclick="selectModel('${m.id}', '${safeName}')">${m.name || m.id}</div>`;
             });
             html += `</div>`;
         });
-        html += `   </div>
-                 </div>`;
+        html += `   </div></div>`;
 
-        // Inject the built HTML into the container
         document.getElementById('accordionMenu').innerHTML = html;
-
-        // Set the default selection to the very first model available if none is selected
-        if(allModels.length > 0) {
+        if(allModels.length > 0 && !globalSelectedModel) {
             selectModel(allModels[0].id, allModels[0].name || allModels[0].id);
-        } else {
-            document.getElementById('selectedModelText').textContent = "No models available";
         }
+    }
 
-      } catch(e) { 
-          console.error("Model load via bridge failed:", e); 
-          document.getElementById('selectedModelText').textContent = `Error: ${e.message}`;
-      }
+    /**
+     * Modified loadModels to support local/live switching.
+     */
+    async function loadModels() {
+        try {
+            if (!window.AndroidInterface) return;
+            
+            // Check preference via bridge
+            isLiveMode = window.AndroidInterface.getModelSource();
+            document.getElementById('modelSourceToggle').textContent = isLiveMode ? "Use Local Models" : "Enable Live Models";
+
+            if (isLiveMode) {
+                // Try cache first
+                const cached = localStorage.getItem("puter_live_models");
+                if (cached) renderModelAccordion(JSON.parse(cached));
+                
+                // Fetch fresh if authenticated
+                if (typeof puter !== 'undefined' && puter.auth.isSignedIn()) {
+                    loadLiveModels();
+                } else {
+                    document.getElementById('selectedModelText').textContent = "Sign in for Live Models";
+                }
+            } else {
+                const jsonString = window.AndroidInterface.getLocalJson("models.json");
+                if (!jsonString || jsonString === "{}") throw new Error("Local models missing");
+                renderModelAccordion(JSON.parse(jsonString));
+            }
+        } catch(e) {
+            console.error("Model load failed:", e);
+            document.getElementById('selectedModelText').textContent = "Error loading models";
+        }
+    }
+
+    /**
+     * Requirement #7 - Live Fetch Implementation
+     */
+    async function loadLiveModels() {
+        try {
+            document.getElementById('selectedModelText').textContent = "Syncing live models...";
+            const raw = await (puter.ai.models ? puter.ai.models() : puter.ai.listModels());
+            const grouped = normalizeModels(raw);
+            localStorage.setItem("puter_live_models", JSON.stringify(grouped));
+            renderModelAccordion(grouped);
+        } catch (err) {
+            console.error("Live Fetch failed:", err);
+        }
+    }
+
+    function toggleModelSource() {
+        isLiveMode = !isLiveMode;
+        window.AndroidInterface.setModelSource(isLiveMode);
+        loadModels();
+        document.getElementById('puterDropdownMenu').classList.remove('show');
     }
 
     // 2. Main Chat Logic with ECG LOADER & AUTO-READ FIX
@@ -638,6 +682,10 @@
         if (logged === lastAuthStatus) return;
         lastAuthStatus = logged;
         document.getElementById('authOption').textContent = logged ? "Sign Out" : "Sign In";
+        
+        // Requirement #7 - Automatically fetch live models on sign-in if enabled
+        if (logged && isLiveMode) loadLiveModels();
+
         window.AndroidInterface.onAuthStatusChanged(logged);
       }
     }
