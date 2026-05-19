@@ -7,7 +7,8 @@
   <title>Puter Unofficial</title>
   <!-- DIAGNOSTIC CONSOLE: Must load first to capture all events -->
   <script src="debug_console.js"></script>
-  <script src="https://js.puter.com/v2/" async></script>
+  <!-- FIX 1: Removed 'async' to ensure SDK is available for initialization logic -->
+  <script src="https://js.puter.com/v2/"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@4.0.0/marked.min.js"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <style>
@@ -475,6 +476,26 @@
         document.getElementById('puterDropdownMenu').classList.remove('show');
     }
 
+    /**
+     * FIX 2 - Normalizes AI Response strings vs arrays (Claude Fix)
+     */
+    function normalizeAIResponse(content) {
+        if (!content) return "";
+        if (typeof content === "string") return content;
+        if (Array.isArray(content)) {
+            return content.map(item => {
+                if (typeof item === "string") return item;
+                if (item.text) return item.text;
+                return JSON.stringify(item);
+            }).join("\n");
+        }
+        if (typeof content === "object") {
+            if (content.text) return content.text;
+            return JSON.stringify(content);
+        }
+        return String(content);
+    }
+
     // 2. Main Chat Logic with ECG LOADER & AUTO-READ FIX
     async function sendMessage() {
       console.log("Send Clicked. Checking Puter Auth...");
@@ -513,7 +534,9 @@
       try {
         console.log("Requesting AI Response for model: " + model);
         const resp = await puter.ai.chat(content, {model: model, system_message: customInstruction});
-        const botMsg = resp.message.content;
+        
+        // FIX 2: Apply normalization to the response content (Claude Array Fix)
+        const botMsg = normalizeAIResponse(resp.message.content);
 
         // HIDE ECG LOADER
         loader.style.display = 'none';
@@ -551,7 +574,8 @@
       div.onpointercancel = () => clearTimeout(pressTimer);
       div.oncontextmenu = (e) => e.preventDefault(); // Disable system context menu
 
-      div.innerHTML = `<div class="message-content"><b>${sender}:</b><br>${marked.parse(text)}</div>`;
+      // FIX 2: Safe String conversion for marked.parse
+      div.innerHTML = `<div class="message-content"><b>${sender}:</b><br>${marked.parse(String(text || ""))}</div>`;
       log.appendChild(div);
       
       // Persist to history if it's a real chat turn
@@ -731,7 +755,7 @@
         console.log("Page Lifecycle: ONLOAD on Secure Origin");
         
         syncAuthSession();
-        loadModels();
+        // FIX 1: loadModels() removed from here to wait for SDK ready
         loadSavedHistory();
         document.getElementById('customInput').value = customInstruction;
 
@@ -740,6 +764,8 @@
             puter.ready(() => {
                 console.log("Puter SDK Ready. Finalizing Session UI...");
                 updateAuthUI();
+                // FIX 1: loadModels triggered only when SDK is 100% available
+                loadModels();
             });
         } else {
             console.error("CRITICAL: Puter.js SDK failed to load on this origin!");
