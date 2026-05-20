@@ -3,10 +3,16 @@ package com.puter.unofficial;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentValues; // Added for saving images
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap; // Added for image decoding
+import android.graphics.BitmapFactory; // Added for image decoding
 import android.net.Uri;
+import android.os.Build; // Added for Scoped Storage compatibility
+import android.os.Environment; // Added for public directory
+import android.provider.MediaStore; // Added for saving images
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.webkit.JavascriptInterface;
@@ -15,8 +21,12 @@ import android.widget.Toast;
 import android.util.Log;
 import android.webkit.CookieManager;
 
+import java.io.OutputStream; // Added for writing image data
+import java.io.IOException; // Added for exception handling
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects; // Added for null checks on Objects
+import java.util.Date; // Added for unique file naming
 
 /**
  * The core bridge class between the HTML JavaScript and Native Android code.
@@ -361,6 +371,98 @@ public class WebAppInterface {
      */
     public void setLoggedIn(boolean status) {
         AuthManager.getInstance(context).setLoggedIn(status);
+    }
+
+    /**
+     * Implements a new @JavascriptInterface method: saveImageToGallery(String base64Data).
+     * This method strips the prefix, decodes Base64 to Bitmap, and saves it to the
+     * public "Pictures/PuterAI" folder, handling Scoped Storage and showing Toast feedback.
+     */
+    @JavascriptInterface
+    public void saveImageToGallery(String base64Data) {
+        ((Activity) context).runOnUiThread(() -> {
+            try {
+                if (base64Data == null || base64Data.isEmpty()) {
+                    Toast.makeText(context, "Image data is empty.", Toast.LENGTH_SHORT).show();
+                    nativeLog("Attempted to save empty image data.", "error");
+                    return;
+                }
+
+                String mimeType = "image/png"; // Default to PNG
+                String strippedData = base64Data;
+
+                // 1. Strip the prefix (e.g., "data:image/png;base64,")
+                int commaIndex = base64Data.indexOf(',');
+                if (commaIndex != -1 && base64Data.startsWith("data:")) {
+                    String prefix = base64Data.substring(0, commaIndex);
+                    if (prefix.contains("image/jpeg")) {
+                        mimeType = "image/jpeg";
+                    } else if (prefix.contains("image/webp")) {
+                        mimeType = "image/webp";
+                    }
+                    strippedData = base64Data.substring(commaIndex + 1);
+                }
+
+                // 2. Decode the Base64 string into a Bitmap.
+                byte[] decodedBytes = android.util.Base64.decode(strippedData, android.util.Base64.DEFAULT);
+                Bitmap bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+
+                if (bitmap == null) {
+                    Toast.makeText(context, "Failed to decode image data.", Toast.LENGTH_SHORT).show();
+                    nativeLog("Failed to decode Base64 to Bitmap.", "error");
+                    return;
+                }
+
+                // 3. Use the ContentValues and MediaStore.Images.Media API to save the bitmap
+                //    into the public "Pictures/PuterAI" folder.
+                String fileName = "PuterAI_Image_" + new Date().getTime() + (mimeType.equals("image/jpeg") ? ".jpg" : ".png");
+                
+                ContentValues contentValues = new ContentValues();
+                contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                contentValues.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
+                // API 29 (Android 10) and above require RELATIVE_PATH for Scoped Storage
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PuterAI");
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 1); // Indicate that we are writing
+                }
+
+                Uri collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                Uri imageUri = context.getContentResolver().insert(collection, contentValues);
+
+                if (imageUri == null) {
+                    throw new IOException("Failed to create new MediaStore record.");
+                }
+
+                try (OutputStream os = context.getContentResolver().openOutputStream(imageUri)) {
+                    if (os == null) {
+                        throw new IOException("Failed to get OutputStream.");
+                    }
+                    Bitmap.CompressFormat format = mimeType.equals("image/jpeg") ? Bitmap.CompressFormat.JPEG : Bitmap.CompressFormat.PNG;
+                    bitmap.compress(format, 100, os); // Compress and write the bitmap
+                    os.flush(); // Ensure all data is written
+                } finally {
+                    // Update IS_PENDING to 0 to make the file visible
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        contentValues.clear();
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                        context.getContentResolver().update(imageUri, contentValues, null, null);
+                    }
+                }
+
+                Toast.makeText(context, "Image saved to Pictures/PuterAI!", Toast.LENGTH_LONG).show();
+                nativeLog("Image saved successfully: " + fileName, "success");
+
+            } catch (IllegalArgumentException e) {
+                Toast.makeText(context, "Error decoding image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                nativeLog("Image decoding error: " + e.getMessage(), "error");
+            } catch (IOException e) {
+                Toast.makeText(context, "Error saving image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                nativeLog("Image saving error: " + e.getMessage(), "error");
+            } catch (Exception e) {
+                Toast.makeText(context, "An unexpected error occurred: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                nativeLog("Unexpected error saving image: " + e.getMessage(), "error");
+            }
+        });
     }
 
     /**
