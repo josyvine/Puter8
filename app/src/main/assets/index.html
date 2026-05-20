@@ -31,7 +31,11 @@
     .dropdown li:hover { background: #eee; }
 
     /* Session List styling inside dropdown */
-    .session-divider { background: #f9f9f9; font-weight: bold; color: #888; font-size: 12px; padding: 5px 20px; cursor: default; }
+    .session-divider { background: #f9f9f9; font-weight: bold; color: #888; font-size: 12px; padding: 5px 20px; cursor: default; border-top: 1px solid #eee; }
+    
+    /* NEW: Usage Details styling in dropdown */
+    .usage-divider { background: #e8f0fe; font-weight: bold; color: #1a73e8; font-size: 11px; padding: 10px 20px; cursor: default; border-top: 1px solid #d1e3ff; line-height: 1.4; }
+    .usage-val { color: #333; font-family: monospace; display: block; margin-top: 2px; }
 
     .settings-container { position: fixed; top: 60px; left: 0; width: 100%; background: #fff; z-index: 90; padding: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-bottom: 1px solid #ddd; }
 
@@ -201,6 +205,14 @@
       <li onclick="newSession()">New Session</li>
       <li id="toggleSettingsBtn" onclick="toggleSettingsUI()">Hide Settings</li>
       <li onclick="openModal('helpModal')">Help</li>
+      
+      <!-- NEW FEATURE: USAGE TELEMETRY IN MENU -->
+      <li id="usageDisplay" class="usage-divider">
+        GENERATION USAGE
+        <span class="usage-val" id="lastTokenVal">Last: 0 tokens</span>
+        <span class="usage-val" id="lastCreditVal">Cost: 0.00 credits</span>
+      </li>
+
       <!-- REQUIREMENT #3: DYNAMIC SESSION LIST INJECTED HERE -->
       <div id="dynamicSessions"></div>
     </ul>
@@ -292,7 +304,7 @@
       <p style="font-size: 14px; color: #666;">Set a system behavior for the AI models.</p>
       <textarea id="customInput" style="width:100%; height:120px; padding:10px; border-radius:8px; border:1px solid #ccc; outline:none;"></textarea>
       <div class="modal-buttons">
-        <button class="btn-secondary" onclick="closeModal('customModal') anchor: 'none'">Cancel</button>
+        <button class="btn-secondary" onclick="closeModal('customModal')">Cancel</button>
         <button class="btn-primary" onclick="saveCustom()">Save</button>
       </div>
     </div>
@@ -660,6 +672,17 @@
         }
     }
 
+    /* --- NEW FEATURE: UPDATE USAGE DATA IN DROPDOWN --- */
+    function updateUsageUI(usage) {
+        if(!usage) return;
+        const totalTokens = usage.total_tokens || (usage.prompt_tokens + usage.completion_tokens) || 0;
+        const totalCredits = usage.usd_cents ? (usage.usd_cents / 100).toFixed(4) : "0.0000";
+
+        document.getElementById('lastTokenVal').textContent = `Last: ${totalTokens} tokens`;
+        document.getElementById('lastCreditVal').textContent = `Cost: $${totalCredits}`;
+        console.log(`TELEMETRY: ${totalTokens} tokens used.`);
+    }
+
     // 2. Main Chat Logic with ECG LOADER & MULTI-FILE PAYLOAD
     async function sendMessage(fromVoice = false) {
       console.log("Send Clicked. Voice Active: " + fromVoice);
@@ -763,6 +786,10 @@
 
         // Iterate over the stream response
         for await (const chunk of streamResp) {
+            
+            // CAPTURE USAGE DATA IF PRESENT IN CHUNK
+            if(chunk.usage) updateUsageUI(chunk.usage);
+
             // Extract the stream chunk robustly depending on payload shape
             const chunkText = chunk?.text || chunk?.message?.content || normalizeAIResponse(chunk) || "";
             if (chunkText) {
