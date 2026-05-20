@@ -116,6 +116,23 @@ public class PuterWebViewClient extends WebViewClient {
             
             // Reset the auth URL guard once we are back at the home index
             lastHandledAuthUrl = "";
+        } 
+        // DUAL-SCRAPER DYNAMIC INJECTION ENGINE:
+        // Intercepts external, non-virtual assets loading in the manual web browser viewports.
+        else if (url != null && !url.startsWith("https://appassets.androidplatform.net/")) {
+            if (url.contains("amazon.in") || url.contains("amazon.com")) {
+                Log.i(TAG, "Kiwi-Style System: Detecting E-Commerce Domain (Amazon). Injecting content.js...");
+                String contentScript = AssetUtils.readFile(context, "content.js");
+                view.post(() -> {
+                    view.evaluateJavascript(contentScript, null);
+                });
+            } else {
+                Log.i(TAG, "Kiwi-Style System: Detecting External Article Domain. Injecting universal_scraper.js...");
+                String universalScript = AssetUtils.readFile(context, "universal_scraper.js");
+                view.post(() -> {
+                    view.evaluateJavascript(universalScript, null);
+                });
+            }
         }
     }
 
