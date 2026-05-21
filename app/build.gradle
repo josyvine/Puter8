@@ -41,6 +41,9 @@ dependencies {
     // REQUIRED FOR HTTPS VIRTUAL ORIGIN SUPPORT
     implementation 'androidx.webkit:webkit:1.9.0'
     
+    // REQUIRED FOR NOSTR BIP-340 SCHNORR CRYPTO AND KEY GENERATION
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.77'
+    
     // Testing
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
