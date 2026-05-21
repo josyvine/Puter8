@@ -271,6 +271,24 @@
   <script>
     let currentActiveUrl = "";
     let scrapeTimeout = null;
+    let scrapeWatchdog = null; // NEW: Diagnostic watchdog timer
+
+    // --- TOTAL SURVEILLANCE: GLOBAL EXCEPTION INTERCEPTORS ---
+    window.onerror = function(message, source, lineno, colno, error) {
+        if (window.AndroidInterface && window.AndroidInterface.logHtmlGlitch) {
+            const stack = error ? error.stack : "No stack trace available";
+            const details = "Error: " + message + "\nSource: " + source + " at line " + lineno + ":" + colno + "\nStack:\n" + stack;
+            window.AndroidInterface.logHtmlGlitch("browser.html", details);
+        }
+        return false; // Propagate to browser normally
+    };
+
+    window.onunhandledrejection = function(event) {
+        if (window.AndroidInterface && window.AndroidInterface.logHtmlGlitch) {
+            const reason = event.reason ? (event.reason.stack || event.reason) : "No rejection reason";
+            window.AndroidInterface.logHtmlGlitch("browser.html", "Unhandled Promise Rejection:\n" + reason);
+        }
+    };
 
     function onViewportLoad() {
         try {
@@ -354,7 +372,8 @@
      * Performs domain detection:
      * - If Amazon: Redirects the viewport frame to scraper.html command dashboard.
      * - If Universal: Executes silent background scrape and saves payload.
-     * ENHANCED: Includes dynamic color state changes for Universal Mode scraping cycles.
+     * ENHANCEMENT: Includes dynamic color state changes for Universal Mode scraping cycles.
+     * SURVEILLANCE: Implements an 8-second diagnostic watchdog to intercept infinite orange hangs.
      */
     function triggerWebScrape() {
         const activeUrl = currentActiveUrl || document.getElementById('addressInput').value.trim();
@@ -388,6 +407,35 @@
                 fab.className = 'scrape-fab state-processing';
             }, 1200);
 
+            // 3. START DIAGNOSTIC WATCHDOG TIMER (8-seconds limit)
+            if (scrapeWatchdog) clearTimeout(scrapeWatchdog);
+            scrapeWatchdog = setTimeout(() => {
+                // Clear any pending transition timers
+                if (scrapeTimeout) clearTimeout(scrapeTimeout);
+
+                if (window.AndroidInterface && window.AndroidInterface.reportGlitchedLogic) {
+                    window.AndroidInterface.reportGlitchedLogic(
+                        "SCRAPE_TIMEOUT", 
+                        "Universal content script failed to respond within 8 seconds. Viewport URL: " + activeUrl
+                    );
+                }
+                
+                // Force-transition back to RED (Error State) to visually denote failure
+                fab.className = 'scrape-fab state-scraping';
+                
+                if (window.AndroidInterface && window.AndroidInterface.showToast) {
+                    window.AndroidInterface.showToast("Scraping failed: Iframe or Script Timeout.");
+                } else {
+                    alert("Scraping failed: Iframe or Script Timeout.");
+                }
+
+                // Revert to Blue after 4 seconds
+                setTimeout(() => {
+                    fab.className = 'scrape-fab';
+                }, 4000);
+
+            }, 8000);
+
             const iframe = document.getElementById('browserViewport');
             try {
                 // If same origin, execute script directly
@@ -407,8 +455,9 @@
             if (window.AndroidInterface && window.AndroidInterface.addScrapedProduct) {
                 window.AndroidInterface.addScrapedProduct(payload.scraped_id, JSON.stringify(payload));
                 
-                // Clear active progress timers
+                // Clear active progress and watchdog timers immediately
                 if (scrapeTimeout) clearTimeout(scrapeTimeout);
+                if (scrapeWatchdog) clearTimeout(scrapeWatchdog);
 
                 const fab = document.querySelector('.scrape-fab');
                 
