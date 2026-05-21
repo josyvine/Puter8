@@ -178,11 +178,19 @@ public class PuterWebViewClient extends WebViewClient {
                     responseHeaders.put("Access-Control-Allow-Methods", "GET, OPTIONS");
 
                     java.io.InputStream stream = conn.getInputStream();
+                    String contentEncoding = conn.getContentEncoding();
+                    boolean isGzipped = contentEncoding != null && contentEncoding.toLowerCase().contains("gzip");
 
                     // CORE FIX: Perform stream interception and HTML injection for the scraper scripts
                     if (mimeType.toLowerCase().contains("text/html")) {
                         try {
-                            java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(stream, encoding));
+                            java.io.InputStream localStream = stream;
+                            if (isGzipped) {
+                                // Wrap in GZIPInputStream to successfully decompress the stream before reading
+                                localStream = new java.util.zip.GZIPInputStream(stream);
+                            }
+
+                            java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(localStream, encoding));
                             StringBuilder htmlBuilder = new StringBuilder();
                             String line;
                             while ((line = reader.readLine()) != null) {
@@ -213,6 +221,10 @@ public class PuterWebViewClient extends WebViewClient {
                             }
 
                             stream = new java.io.ByteArrayInputStream(html.getBytes(encoding));
+
+                            // Remove gzip compression header since we are delivering decrypted uncompressed HTML
+                            responseHeaders.remove("Content-Encoding");
+                            responseHeaders.remove("content-encoding");
                         } catch (Exception injectionError) {
                             Log.e(TAG, "Stream Interceptor Error: Parsing failed. Restoring original stream context.", injectionError);
                             // Fallback to original connection properties in case of an encoding exception
@@ -220,8 +232,10 @@ public class PuterWebViewClient extends WebViewClient {
                             conn = (java.net.HttpURLConnection) url.openConnection();
                             conn.setRequestMethod("GET");
                             if (request.getRequestHeaders() != null) {
-                                for (java.util.Map.Entry<String, String> entry : request.getRequestHeaders().entrySet()) {
-                                    conn.setRequestProperty(entry.getKey(), entry.getValue());
+                                {
+                                    for (java.util.Map.Entry<String, String> entry : request.getRequestHeaders().entrySet()) {
+                                        conn.setRequestProperty(entry.getKey(), entry.getValue());
+                                    }
                                 }
                             }
                             stream = conn.getInputStream();
