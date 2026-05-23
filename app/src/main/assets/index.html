@@ -871,6 +871,15 @@
       // REQUIREMENT: Must check both text and stagedFiles
       if(!text && stagedFiles.length === 0) return;
 
+      // =========================================================================
+      // DUAL-MODE BRANCHING INTERCEPTOR (Instruction One, Two, Five)
+      // =========================================================================
+      const isAutoModeActive = window.AndroidInterface && window.AndroidInterface.getAutoMode();
+      if (isAutoModeActive) {
+          executeAutoModeQuery(fromVoice, text);
+          return;
+      }
+
       // Store current files for this chat turn
       const messageFiles = [...stagedFiles];
 
@@ -1579,6 +1588,335 @@
 
         window.AndroidInterface.onAuthStatusChanged(logged);
       }
+    }
+
+    // =========================================================================
+    // NEW: AUTOMATED ACTIVE SEARCH AND IN-MEMORY RAG COMPLETION
+    // =========================================================================
+
+    /**
+     * Helper to read the hex public key of the native identity record.
+     */
+    async function getNativePubkeyHex() {
+        if (window.AndroidInterface && window.AndroidInterface.getNativeIdentity) {
+            try {
+                const idJson = JSON.parse(window.AndroidInterface.getNativeIdentity());
+                return idJson.public_key || "";
+            } catch (e) {
+                console.error("index.html: Error parsing native identity hex.", e);
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Lightweight SHA-256 string encoder utility.
+     */
+    async function sha256(dataString) {
+        const utf8 = new TextEncoder().encode(dataString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    /**
+     * Programs state descriptions inside loader indicator blocks dynamically.
+     */
+    function updateLoaderCardText(loaderId, text) {
+        const label = document.getElementById(`loader-state-label-${loaderId}`);
+        if (label) label.innerText = text;
+    }
+
+    /**
+     * Fallback processor designed to preserve conversational loops if sockets fail.
+     */
+    async function executeStandardFallback(queryText, loaderId) {
+        const activeModel = globalSelectedModel;
+        try {
+            const streamResp = await puter.ai.chat(queryText, {
+                model: activeModel,
+                system_message: customInstruction,
+                stream: true
+            });
+
+            // Purge the header loader nodes, transforming card back to standard conversational bubble
+            const loaderTextEl = document.getElementById(`loader-indicator-text-${loaderId}`);
+            if (loaderTextEl) loaderTextEl.remove();
+
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            let fullBotText = "";
+            for await (const chunk of streamResp) {
+                if (chunk.usage) { updateUsageUI(chunk.usage); continue; }
+                const chunkText = chunk?.text || chunk?.message?.content || "";
+                if (chunkText) {
+                    fullBotText += chunkText;
+                    targetSpan.innerHTML = marked.parse(fullBotText);
+                    document.querySelectorAll(`#stream-content-${loaderId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+            }
+
+            // Persist conversational fallback to historical databases
+            chatHistory.push({sender: "Bot", text: fullBotText, id: `msg-${loaderId}`, files: []});
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+            if (isVoiceResponseActive && window.AndroidInterface) {
+                window.AndroidInterface.speak(fullBotText);
+            }
+        } catch (e) {
+            console.error("index.html: Fallback completing cycle failed.", e);
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            if (targetSpan) targetSpan.innerHTML = "Fallback completed with error: " + e.message;
+        }
+    }
+
+    /**
+     * Silent execution engine driving prompt compiles, boundary formatting,
+     * and in-memory RAG completion.
+     * Requirement: Instruction Two, Five and Seven
+     */
+    async function executeAutoModeRAG(queryText, rawScrapedJson, loaderId) {
+        let liveContextString = "";
+        try {
+            const items = JSON.parse(rawScrapedJson);
+            if (Array.isArray(items)) {
+                // Slice top 2 crawled web pages matching user's current query
+                const top2 = items.slice(0, 2);
+                top2.forEach(item => {
+                    const isUniversal = (item.type === "universal_web");
+                    const url = isUniversal ? (item.metadata?.url || "N/A") : `https://www.amazon.in/dp/${item.specifications?.asin || 'N/A'}`;
+                    const title = isUniversal ? (item.metadata?.title || "Universal Article") : `${item.specifications?.brand || ''} ${item.specifications?.model || ''}`;
+                    const contentText = isUniversal ? (item.content || "") : JSON.stringify(item.specifications);
+
+                    // Structured Data boundaries Layer 2
+                    liveContextString += `[START OF LIVE WEB CONTEXT]\n`;
+                    liveContextString += `Source URL: ${url}\n`;
+                    liveContextString += `Page Title: ${title}\n`;
+                    liveContextString += `Scraped Content: ${contentText}\n`;
+                    liveContextString += `[END OF LIVE WEB CONTEXT]\n\n`;
+                });
+            }
+        } catch (e) {
+            console.error("index.html: RAG Context extraction error.", e);
+            liveContextString = `[START OF LIVE WEB CONTEXT]\nScraped Content: ${rawScrapedJson}\n[END OF LIVE WEB CONTEXT]\n`;
+        }
+
+        // Layer 1: System and Role Definition
+        let systemPrompt = "You are an up-to-date, conversational AI assistant equipped with real-time web-crawling capabilities.\n";
+        systemPrompt += "You have been provided with fresh, crawled web documents matching the user's current query. You must prioritize this provided web data to construct your response.\n\n";
+
+        // Layer 2: Compile XML boundaries
+        let groundingPrompt = systemPrompt + liveContextString;
+
+        // Layer 3: Behavioral and Formatting Constraints
+        groundingPrompt += "=== BEHAVIORAL AND FORMATTING CONSTRAINTS ===\n";
+        groundingPrompt += "- The \"No Technical Jargon\" Rule: You must NEVER mention technical or developmental terms under any circumstances, including but not limited to: \"raw JSON\", \"scraped databases\", \"API payloads\", \"web crawlers\", \"HTML tags\", \"Nostr events\", or \"relays\".\n";
+        groundingPrompt += "- The \"Natural Voice\" Rule: You must speak naturally, directly, and conversationally, as if you naturally possess this live, up-to-date knowledge.\n";
+        groundingPrompt += "- The \"Hallucination Guard\": If the provided web context does not contain the information needed to answer the question, you must politely state that you cannot find the information in the current search results, rather than fabricating facts.\n\n";
+
+        // Layer 4: Original User Query
+        groundingPrompt += `USER QUESTION: ${queryText}`;
+
+        const activeModel = globalSelectedModel;
+        try {
+            updateLoaderCardText(loaderId, "AI is synthesizing web findings...");
+
+            // Pass entire context grounding prompt directly to Puter SDK chat completions
+            const streamResp = await puter.ai.chat(groundingPrompt, {
+                model: activeModel,
+                system_message: "You are an up-to-date conversational AI assistant.",
+                stream: true
+            });
+
+            // Strip the diagnostic loaders, converting card back to standard chat bubble
+            const loaderTextEl = document.getElementById(`loader-indicator-text-${loaderId}`);
+            if (loaderTextEl) loaderTextEl.remove();
+
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            let fullBotText = "";
+            for await (const chunk of streamResp) {
+                if (chunk.usage) { updateUsageUI(chunk.usage); continue; }
+                const chunkText = chunk?.text || chunk?.message?.content || "";
+                if (chunkText) {
+                    fullBotText += chunkText;
+                    targetSpan.innerHTML = marked.parse(fullBotText);
+                    document.querySelectorAll(`#stream-content-${loaderId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+            }
+
+            // Persist the synthesized conversation context back to session history
+            chatHistory.push({sender: "Bot", text: fullBotText, id: `msg-${loaderId}`, files: []});
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+            if (isVoiceResponseActive && window.AndroidInterface) {
+                window.AndroidInterface.speak(fullBotText);
+            }
+        } catch (completedError) {
+            console.error("index.html: Grounding prompt execution failure.", completedError);
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            if (targetSpan) targetSpan.innerHTML = "RAG Synthesize error: " + completedError.message;
+        }
+    }
+
+    /**
+     * Intercepts messages in Auto Mode, handles programmatic WebSockets,
+     * signs queries, and subscribers for crawled responses.
+     * Requirement: Instruction Two and Five
+     */
+    async function executeAutoModeQuery(fromVoice, queryText) {
+        const input = document.getElementById('puterChatInput');
+
+        // Clean user input textarea immediately
+        input.value = "";
+        handleInput();
+
+        // Render User bubble locally
+        appendChat("User", queryText, false, []);
+
+        // Step A: Append loader card to prevent visual locks
+        const loaderId = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+        const log = document.getElementById('puterChatLog');
+        const div = document.createElement('div');
+        div.className = "message bot-message";
+        div.id = `msg-${loaderId}`;
+
+        let pressTimer;
+        div.onpointerdown = (e) => { pressTimer = window.setTimeout(() => { showContextMenu(e, "", `msg-${loaderId}`); }, 700); };
+        div.onpointerup = () => clearTimeout(pressTimer);
+        div.oncontextmenu = (e) => e.preventDefault();
+
+        div.innerHTML = `
+            <div class="message-content" style="position: relative; width: 100%;">
+                <b>Bot:</b><br>
+                <div id="loader-indicator-text-${loaderId}" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <svg class="ecg-graph" viewBox="0 0 100 30" style="width: 50px; height: 15px; margin: 0;">
+                        <path class="ecg-path" d="M0,15 L25,15 L30,5 L35,25 L40,15 L60,15 L65,0 L75,30 L80,15 L100,15" />
+                    </svg>
+                    <span id="loader-state-label-${loaderId}" style="font-size: 13px; color: #666; font-weight: bold;">AI is waiting for Kiwi Browser response...</span>
+                </div>
+                <span id="stream-content-${loaderId}"></span>
+            </div>
+        `;
+        log.appendChild(div);
+        window.scrollTo(0, document.body.scrollHeight);
+
+        // Step B: Build, Sign and Broadcast search query over Nostr
+        try {
+            if (!window.AndroidInterface) {
+                updateLoaderCardText(loaderId, "Interface lost. Executing standard fallback...");
+                executeStandardFallback(queryText, loaderId);
+                return;
+            }
+
+            const pubkeyHex = await getNativePubkeyHex();
+            if (!pubkeyHex) {
+                updateLoaderCardText(loaderId, "Identity key not found. Executing standard fallback...");
+                executeStandardFallback(queryText, loaderId);
+                return;
+            }
+
+            const settingsJson = JSON.parse(window.AndroidInterface.getNostrSettings());
+            const relayUrl = settingsJson.relay_url || "wss://relay.damus.io";
+
+            updateLoaderCardText(loaderId, "Establishing socket connection to relay...");
+            const tempSocket = new WebSocket(relayUrl);
+
+            // Establish dedicated watchdog to safeguard conversational flow
+            const socketTimeout = setTimeout(() => {
+                if (tempSocket.readyState === WebSocket.CONNECTING || tempSocket.readyState === WebSocket.OPEN) {
+                    tempSocket.close();
+                    updateLoaderCardText(loaderId, "Relay connection timeout. Executing standard fallback...");
+                    executeStandardFallback(queryText, loaderId);
+                }
+            }, 10000); // 10 second timeout
+
+            tempSocket.onopen = async () => {
+                updateLoaderCardText(loaderId, "Socket connected. Broadcasting signed query...");
+
+                const createdAt = Math.floor(Date.now() / 1000);
+                const tags = [["t", "puter_unofficial_query"]];
+
+                const serializeArr = [
+                    0,
+                    pubkeyHex,
+                    createdAt,
+                    1,
+                    tags,
+                    queryText
+                ];
+
+                const serialized = JSON.stringify(serializeArr);
+                const eventId = await sha256(serialized);
+
+                const unsignedEvent = {
+                    id: eventId,
+                    pubkey: pubkeyHex,
+                    created_at: createdAt,
+                    kind: 1,
+                    tags: tags,
+                    content: queryText
+                };
+
+                // Request cryptographic signature natively via Java Bridge using secp256k1
+                const sig = window.AndroidInterface.signNostrEvent(JSON.stringify(unsignedEvent));
+                if (!sig) {
+                    clearTimeout(socketTimeout);
+                    tempSocket.close();
+                    updateLoaderCardText(loaderId, "Sign failed natively. Executing standard fallback...");
+                    executeStandardFallback(queryText, loaderId);
+                    return;
+                }
+
+                const signedEvent = {
+                    ...unsignedEvent,
+                    sig: sig
+                };
+
+                // Publish Event
+                tempSocket.send(JSON.stringify(["EVENT", signedEvent]));
+
+                // Subscribe to scraped event containing extracted result JSONs
+                updateLoaderCardText(loaderId, "Waiting for extension crawl response...");
+                const reqFrame = ["REQ", "auto_mode_sub", {
+                    kinds: [1],
+                    authors: [pubkeyHex],
+                    "#t": ["puter_unofficial_scrap"]
+                }];
+                tempSocket.send(JSON.stringify(reqFrame));
+            };
+
+            tempSocket.onmessage = async (msgEvent) => {
+                try {
+                    const message = JSON.parse(msgEvent.data);
+                    if (Array.isArray(message) && message[0] === "EVENT" && message[2]) {
+                        const incomingEvent = message[2];
+                        const content = incomingEvent.content;
+                        if (content) {
+                            clearTimeout(socketTimeout);
+                            tempSocket.close();
+
+                            // Trigger in-memory prompt generation
+                            await executeAutoModeRAG(queryText, content, loaderId);
+                        }
+                    }
+                } catch (e) {
+                    console.error("index.html: onmessage parse exception", e);
+                }
+            };
+
+            tempSocket.onerror = (err) => {
+                clearTimeout(socketTimeout);
+                tempSocket.close();
+                updateLoaderCardText(loaderId, "Relay socket error. Executing standard fallback...");
+                executeStandardFallback(queryText, loaderId);
+            };
+
+        } catch (setupError) {
+            console.error("index.html: Auto Mode pipeline setup failure", setupError);
+            updateLoaderCardText(loaderId, "Setup process failed. Executing standard fallback...");
+            executeStandardFallback(queryText, loaderId);
+        }
     }
 
     // --- HELPER FUNCTIONS ---
