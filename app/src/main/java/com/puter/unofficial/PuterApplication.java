@@ -14,6 +14,7 @@ import java.io.StringWriter;
  * Initializes necessary notification channels for background voice/chat services.
  * UPDATED: Integrated local ActionReportLogger and UIHangDetector watchdog.
  * UPDATED: Implemented a robust global uncaught exception handler to capture all crash telemetry.
+ * UPDATED: Registered a low-importance notification channel specifically for the QueryWatcherService.
  */
 public class PuterApplication extends Application {
 
@@ -83,11 +84,17 @@ public class PuterApplication extends Application {
     }
 
     /**
-     * Creates a Notification Channel for Puter AI interactions.
+     * Creates Notification Channels for Puter AI interactions and background query watching.
      * Required for Android 8.0 (API 26) and above.
      */
     private void createPuterNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            if (notificationManager == null) {
+                return;
+            }
+
+            // 1. Puter AI Agent Channel (Voice and interactions)
             // User-visible name for the channel (shown in system settings)
             CharSequence name = "Puter AI Agent";
             
@@ -102,12 +109,28 @@ public class PuterApplication extends Application {
             
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
+            notificationManager.createNotificationChannel(channel);
 
-            // Register the channel with the Android system
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            if (notificationManager != null) {
-                notificationManager.createNotificationChannel(channel);
-            }
+            // 2. NEW: Background Query Watcher Channel
+            // User-visible name for the watcher channel (retrieved from AppConstants)
+            CharSequence watcherChannelName = AppConstants.WATCHER_CHANNEL_NAME;
+            
+            // Description of what this channel does
+            String watcherDescription = "Silently monitors background Nostr search queries.";
+            
+            /*
+             * IMPORTANCE_LOW: Ensures the persistent background notification card
+             * displays quietly in the tray without making intrusive system sounds.
+             */
+            int watcherImportance = NotificationManager.IMPORTANCE_LOW;
+
+            NotificationChannel watcherChannel = new NotificationChannel(
+                    AppConstants.WATCHER_CHANNEL_ID,
+                    watcherChannelName,
+                    watcherImportance
+            );
+            watcherChannel.setDescription(watcherDescription);
+            notificationManager.createNotificationChannel(watcherChannel);
         }
     }
 }
