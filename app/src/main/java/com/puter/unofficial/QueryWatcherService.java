@@ -260,9 +260,9 @@ public class QueryWatcherService extends Service {
         try {
             Log.d(TAG, "Waking up Kiwi Browser silently to run the background RAG crawl loop.");
             
-            // Formulate target search engine query URL
-            String encodedQuery = URLEncoder.encode(queryText, "UTF-8");
-            String targetUrl = "https://html.duckduckgo.com/html/?q=" + encodedQuery;
+            // REQUIREMENT: Target the local browser portal URL to wake up the extension cleanly.
+            // Opening browser.html directly triggers the extension's background sockets to start.
+            String targetUrl = AppConstants.LOCAL_BROWSER_URL;
 
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setData(Uri.parse(targetUrl));
