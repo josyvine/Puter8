@@ -1044,7 +1044,7 @@
                 if (chunkText) {
                     fullBotText += chunkText;
                     targetSpan.innerHTML = marked.parse(fullBotText);
-                    document.querySelectorAll(`#stream-content-${msgId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    document.querySelectorAll(`#stream-content-${loaderId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
                     window.scrollTo(0, document.body.scrollHeight);
                 }
             }
