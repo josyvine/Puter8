@@ -39,6 +39,9 @@ public class QueryWatcherService extends Service {
 
     private static final String TAG = "QueryWatcherService";
     
+    // Cooldown threshold to prevent repetitive intent transitions if Kiwi is already active
+    private static final long WAKE_UP_COOLDOWN_MS = 180000; // 3 minutes
+    
     private SharedPreferences prefs;
     private OkHttpClient client;
     private WebSocket webSocket;
@@ -48,6 +51,8 @@ public class QueryWatcherService extends Service {
     private boolean isRunning = false;
     private String nostrRelayUrl;
     private String hexPublicKey;
+    
+    private long lastWakeUpTime = 0; // Tracks the last time Kiwi was woke up
 
     @Override
     public void onCreate() {
@@ -258,7 +263,17 @@ public class QueryWatcherService extends Service {
      */
     private void triggerBackgroundExploration(String queryText) {
         try {
+            long currentTime = System.currentTimeMillis();
+            
+            // COOLDOWN CHECK: If Kiwi was woke up recently (within 3 minutes), the WebSocket is already active.
+            // We skip launching the redundant foreground intent, allowing the active background extension to process the query 100% silently.
+            if (currentTime - lastWakeUpTime < WAKE_UP_COOLDOWN_MS) {
+                Log.d(TAG, "Kiwi Browser was recently woke up (within 3 minutes). Redundant wake-up intent bypassed.");
+                return;
+            }
+            
             Log.d(TAG, "Waking up Kiwi Browser silently to run the background RAG crawl loop.");
+            lastWakeUpTime = currentTime; // Update the last wake-up mark
             
             // REQUIREMENT: Target the local browser portal URL to wake up the extension cleanly.
             // Opening browser.html directly triggers the extension's background sockets to start.
