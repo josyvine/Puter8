@@ -445,7 +445,7 @@ public class WebAppInterface {
      */
     @JavascriptInterface
     public void setAutoMode(boolean enabled) {
-        prefs.edit().putBoolean(AppConstants.KEY_AUTO_MODE, enabled).apply();
+        prefs.edit().putBoolean(AppConstants.KEY_MODE_AUTO, enabled).apply(); // FIXED CONSTANT KEY TO MATCH APP DESIGN
         nativeLog("Bridge: Set Operational Mode -> " + (enabled ? "AUTO" : "MANUAL"), "native");
     }
 
@@ -455,7 +455,7 @@ public class WebAppInterface {
      */
     @JavascriptInterface
     public boolean getAutoMode() {
-        boolean autoMode = prefs.getBoolean(AppConstants.KEY_AUTO_MODE, false);
+        boolean autoMode = prefs.getBoolean(AppConstants.KEY_MODE_AUTO, false); // FIXED CONSTANT KEY TO MATCH APP DESIGN
         nativeLog("Bridge: Querying Operational Mode -> " + (autoMode ? "AUTO" : "MANUAL"), "info");
         return autoMode;
     }
@@ -504,13 +504,24 @@ public class WebAppInterface {
     /**
      * NEW: On-demand wake up method for Kiwi Browser background extension execution.
      * Invoked by JavaScript when the short-term lazy wake-up watchdog expires.
+     * FIXED: Builds a URL-encoded, cache-busting DuckDuckGo query template dynamically
+     * to prevent offline NXDOMAIN DNS errors in Kiwi.
      */
     @JavascriptInterface
     public void wakeUpKiwi(String queryText) {
         nativeLog("Bridge: On-demand wake-up triggered for Kiwi Browser.", "native");
         ((Activity) context).runOnUiThread(() -> {
             try {
-                String targetUrl = AppConstants.LOCAL_BROWSER_URL;
+                // Defensive local assignment to prevent temporary compilation conflicts
+                String ddgBaseUrl = "https://html.duckduckgo.com/html/?q=";
+                String encodedQuery;
+                try {
+                    encodedQuery = java.net.URLEncoder.encode(queryText, "UTF-8");
+                } catch (java.io.UnsupportedEncodingException e) {
+                    encodedQuery = java.net.URLEncoder.encode(queryText);
+                }
+                String targetUrl = ddgBaseUrl + encodedQuery + "&t=" + System.currentTimeMillis();
+
                 Intent intent = new Intent(Intent.ACTION_VIEW);
                 intent.setData(Uri.parse(targetUrl));
                 intent.setPackage("com.kiwibrowser.browser"); // Target Kiwi Browser explicitly
