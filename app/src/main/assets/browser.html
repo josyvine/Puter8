@@ -47,17 +47,14 @@
     .exit-btn {
       color: #f4f4f4;
       background-color: #d93025;
-      border-radius: 18px;
-      padding: 0 15px;
+      border-radius: 50%;
+      width: 38px;
       height: 38px;
-      font-weight: bold;
-      font-size: 13px;
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
       transition: background-color 0.2s;
     }
 
@@ -69,17 +66,14 @@
     .scraper-btn {
       color: #f4f4f4;
       background-color: #1a73e8;
-      border-radius: 18px;
-      padding: 0 15px;
+      border-radius: 50%;
+      width: 38px;
       height: 38px;
-      font-weight: bold;
-      font-size: 13px;
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
       transition: background-color 0.2s;
     }
 
@@ -470,12 +464,12 @@
 
   <!-- Local Start Header -->
   <header>
-    <button class="exit-btn" onclick="exitBrowser()">
-      <span class="material-symbols-outlined" style="font-size: 18px;">chat</span> Exit to Chat
+    <button class="exit-btn" onclick="exitBrowser()" title="Exit to Chat">
+      <span class="material-symbols-outlined" style="font-size: 20px;">logout</span>
     </button>
     <div class="header-title">Web Browser Portal</div>
-    <button id="btnReconnect" class="scraper-btn" onclick="initNostrConnection()">
-      <span class="material-symbols-outlined" style="font-size: 18px;">sync</span> Reconnect Relay
+    <button id="btnReconnect" class="scraper-btn" onclick="initNostrConnection()" title="Reconnect Relay">
+      <span class="material-symbols-outlined" style="font-size: 20px;">sync</span>
     </button>
   </header>
 
@@ -956,6 +950,7 @@
     /**
      * Receives raw Nostr events, parses their nested contents,
      * and maps them dynamically to "Tiny Box" cards.
+     * FIXED: Multi-item parallel scraping payload now resolves unique card IDs to prevent DOM rendering skips.
      */
     function processIncomingScrapedEvent(event) {
         try {
@@ -972,13 +967,17 @@
                 listContainer.innerHTML = '';
             }
 
-            itemsList.forEach((item) => {
-                // Ensure duplicate check before adding card element
-                const existingCard = document.getElementById(`box_${event.id}`);
-                if (existingCard) return;
-
-                // 1. Identify category mapping metadata
+            itemsList.forEach((item, index) => {
+                // Identify category mapping metadata
                 const isUniversal = (item.hierarchy && item.hierarchy.main_category === "Universal Scrape");
+
+                // Resolve unique indexing key to prevent rendering skip on multi-item parallel events
+                const itemKey = isUniversal ? (item.specifications.title || "UNI_" + index) : (item.specifications.asin || "AMZN_" + index);
+                const cardId = `box_${event.id}_${itemKey}`;
+
+                // Ensure duplicate check before adding card element
+                const existingCard = document.getElementById(cardId);
+                if (existingCard) return;
 
                 // 2. Extracts labeling details (extracts title/model)
                 let label = "";
@@ -995,7 +994,7 @@
                 // 3. Create the Tiny Box card
                 const card = document.createElement("div");
                 card.className = "tiny-box";
-                card.id = `box_${event.id}`;
+                card.id = cardId;
 
                 card.innerHTML = `
                     <div class="tiny-box-content">
@@ -1007,7 +1006,7 @@
 
                 // 4. Save logic on click: Passes JSON to native bridge
                 card.onclick = () => {
-                    const trackingId = isUniversal ? (item.specifications.title || "UNI_" + Date.now()) : (item.specifications.asin || "AMZN_" + Date.now());
+                    const trackingId = isUniversal ? (item.specifications.title || "UNI_" + Date.now() + "_" + index) : (item.specifications.asin || "AMZN_" + Date.now() + "_" + index);
 
                     // Transform to Puter database structure
                     const databaseStructure = {
