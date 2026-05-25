@@ -260,7 +260,7 @@
        * ========================================================================= -->
       <li style="padding: 12px 20px; cursor: default; border-bottom: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 6px;">
         <div style="font-weight: bold; color: #555; font-size: 13px;">Reply Language</div>
-        <input type="text" id="modelLanguageInput" placeholder="Enter reply language (e.g., Malayalam, Spanish)..." oninput="handleLanguageInput(this.value)" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none; background: #f9f9f9; box-sizing: border-box;" />
+        <input type="text" id="modelLanguageInput" placeholder="Enter reply language (e.g., Malayalam, Spanish)..." onchange="handleLanguageInput(this.value)" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none; background: #f9f9f9; box-sizing: border-box;" />
       </li>
 
       <!-- FIX #2: PERSISTENT USAGE TELEMETRY UI -->
@@ -989,7 +989,8 @@
       const targetLanguage = localStorage.getItem("puter_target_language") || "";
       let activeSystemMessage = customInstruction;
       if (targetLanguage) {
-          const systemDirective = `CRITICAL DIRECTIVE: You must strictly reply and write your entire final response using only the following language: ${targetLanguage}. Do not write in English or any other language.`;
+          // Specification 1: Strong language enforcement prompts to force Gemini replies natively (Malayalam/Tamil)
+          const systemDirective = `IMPORTANT:\nALWAYS respond ONLY in ${targetLanguage}.\n\nNEVER use English.\n\nEven if user speaks English, translate internally and answer only in ${targetLanguage}.`;
           activeSystemMessage = activeSystemMessage ? `${activeSystemMessage}\n\n${systemDirective}` : systemDirective;
       }
 
@@ -1175,7 +1176,7 @@
       div.innerHTML = `<div class="message-content"><b>${sender}:</b><br>${marked.parse(String(text || ""))}${filesHtml}</div>`;
       log.appendChild(div);
 
-      // Persist to history if it's a real chat turn
+      // Preserves to history if it's a real chat turn
       if(!isLoad && (sender === "User" || sender === "Bot")) {
           chatHistory.push({sender, text, id: "msg-" + msgId, files: files});
           /* --- REQUIREMENT #3: PERSIST PER SESSION ID --- */
@@ -1900,7 +1901,7 @@
         // Specification 1: Language Constraint dynamic rule integration inside grounding constraints checklist
         const targetLanguage = localStorage.getItem("puter_target_language") || "";
         if (targetLanguage) {
-            groundingPrompt += `- The Language Constraint: You must consume and analyze the provided English web contexts, but you must strictly translate, synthesize, and write your entire final response using only the following language: ${targetLanguage}.\n`;
+            groundingPrompt += `- The Language Constraint:\n  IMPORTANT:\n  ALWAYS respond ONLY in ${targetLanguage}.\n  NEVER use English.\n  Even if user speaks English, translate internally and answer only in ${targetLanguage}.\n`;
         }
         groundingPrompt += "\n";
 
@@ -2297,11 +2298,15 @@
       }
     }
 
-    // Specification 1: Language Input Real-Time Serialization helper
+    // Specification 1: Language Input Real-Time Serialization helper with Native Toasts
     function handleLanguageInput(value) {
         const cleanedValue = value.trim();
         if (cleanedValue) {
             localStorage.setItem("puter_target_language", cleanedValue);
+            console.log("Saved language:", cleanedValue);
+            if (window.AndroidInterface && window.AndroidInterface.showToast) {
+                window.AndroidInterface.showToast("Reply language set to " + cleanedValue);
+            }
         } else {
             localStorage.removeItem("puter_target_language");
         }
