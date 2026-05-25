@@ -255,6 +255,14 @@
       <!-- NEW BROWSER TAB TRANSITION TRIGGERS -->
       <li onclick="window.AndroidInterface.loadLocalUrl('browser.html')">Browse Website</li>
 
+      <!-- =========================================================================
+       * NEW: OPEN-TEXT REPLY LANGUAGE CONFIGURATION PANEL (Specification 1)
+       * ========================================================================= -->
+      <li style="padding: 12px 20px; cursor: default; border-bottom: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-weight: bold; color: #555; font-size: 13px;">Reply Language</div>
+        <input type="text" id="modelLanguageInput" placeholder="Enter reply language (e.g., Malayalam, Spanish)..." oninput="handleLanguageInput(this.value)" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none; background: #f9f9f9; box-sizing: border-box;" />
+      </li>
+
       <!-- FIX #2: PERSISTENT USAGE TELEMETRY UI -->
       <li id="usageDisplay" class="usage-divider">
         GENERATION USAGE
@@ -975,6 +983,16 @@
       loader.style.display = 'flex';
       window.scrollTo(0, document.body.scrollHeight);
 
+      // =========================================================================
+      // OPEN-TEXT LANGUAGE MEMORY SYSTEM SYSTEM DIRECTIVE INJECTION (Specification 1)
+      // =========================================================================
+      const targetLanguage = localStorage.getItem("puter_target_language") || "";
+      let activeSystemMessage = customInstruction;
+      if (targetLanguage) {
+          const systemDirective = `CRITICAL DIRECTIVE: You must strictly reply and write your entire final response using only the following language: ${targetLanguage}. Do not write in English or any other language.`;
+          activeSystemMessage = activeSystemMessage ? `${activeSystemMessage}\n\n${systemDirective}` : systemDirective;
+      }
+
       try {
         console.log("Requesting AI Response for model: " + model);
 
@@ -996,7 +1014,7 @@
             // COMPATIBILITY OPTIMIZATION: Ensure the parameters support legacy and modern multimodal chat image models
             const response = await puter.ai.chat(finalPayload, {
                 model: model,
-                system_message: customInstruction,
+                system_message: activeSystemMessage,
                 stream: false,
                 aspect_ratio: aspectRatio,
                 ratio: mappedRatioObject,
@@ -1024,7 +1042,7 @@
 
         } else {
             // --- ENHANCEMENT: LIVELY STREAMING GENERATION ---
-            const streamResp = await puter.ai.chat(finalPayload, {model: model, system_message: customInstruction, stream: true});
+            const streamResp = await puter.ai.chat(finalPayload, {model: model, system_message: activeSystemMessage, stream: true});
 
             let fullBotText = "";
             const msgId = "msg-" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
@@ -1229,6 +1247,7 @@
             if(el) el.remove();
             // Remove from History
             chatHistory = chatHistory.filter(m => m.id !== id);
+            // Specification 2: Real-time Message Deletion Synchronization
             localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
         } else if(action === 'refresh_relay') {
             // Reads Nostr configurations and force-propagates connections natively
@@ -1248,7 +1267,22 @@
                 alert(targetMode ? "Auto Mode Enabled" : "Normal Mode Enabled");
             }
         } else if(action === 'end_session') {
+            // Specification 3: Context Menu "End Session" Permanent Deletion
+            const targetSessionId = currentSessionId;
+            
+            // Delete historical records natively via hybrid interface bridge
+            if (window.AndroidInterface && window.AndroidInterface.deleteSession) {
+                window.AndroidInterface.deleteSession(targetSessionId);
+            }
+            
+            // Purge local storage chat records web side
+            localStorage.removeItem('puter_chat_history_' + targetSessionId);
+            
+            // Instantiate fresh session ID and clear DOM logs
             newSession();
+            
+            // Redraw session dropdown lists immediately
+            renderDynamicSessionList();
         }
         document.getElementById('customContextMenu').style.display = 'none';
     }
@@ -1861,7 +1895,14 @@
         groundingPrompt += "=== BEHAVIORAL AND FORMATTING CONSTRAINTS ===\n";
         groundingPrompt += "- The \"No Technical Jargon\" Rule: You must NEVER mention technical or developmental terms under any circumstances, including but not limited to: \"raw JSON\", \"scraped databases\", \"API payloads\", \"web crawlers\", \"HTML tags\", \"Nostr events\", or \"relays\".\n";
         groundingPrompt += "- The \"Natural Voice\" Rule: You must speak naturally, directly, and conversationally, as if you naturally possess this live, up-to-date knowledge.\n";
-        groundingPrompt += "- The \"Complete Answer Requirement\": You must construct a complete, detailed, and direct answer using the provided crawled web context. You must never output refusal phrases such as 'I could not find the answer', 'the context does not say', 'the data is missing', or 'I don't know'. Use the provided specifications and text to answer the query fully and directly.\n\n";
+        groundingPrompt += "- The \"Complete Answer Requirement\": You must construct a complete, detailed, and direct answer using the provided crawled web context. You must never output refusal phrases such as 'I could not find the answer', 'the context does not say', 'the data is missing', or 'I don't know'. Use the provided specifications and text to answer the query fully and directly.\n";
+
+        // Specification 1: Language Constraint dynamic rule integration inside grounding constraints checklist
+        const targetLanguage = localStorage.getItem("puter_target_language") || "";
+        if (targetLanguage) {
+            groundingPrompt += `- The Language Constraint: You must consume and analyze the provided English web contexts, but you must strictly translate, synthesize, and write your entire final response using only the following language: ${targetLanguage}.\n`;
+        }
+        groundingPrompt += "\n";
 
         // Layer 4: Original User Query
         groundingPrompt += `USER QUESTION: ${queryText}`;
@@ -2256,6 +2297,16 @@
       }
     }
 
+    // Specification 1: Language Input Real-Time Serialization helper
+    function handleLanguageInput(value) {
+        const cleanedValue = value.trim();
+        if (cleanedValue) {
+            localStorage.setItem("puter_target_language", cleanedValue);
+        } else {
+            localStorage.removeItem("puter_target_language");
+        }
+    }
+
     // Execute immediately on load
     window.onload = () => {
         console.log("Page Lifecycle: ONLOAD on Secure Origin");
@@ -2267,6 +2318,13 @@
         loadSavedHistory();
         loadNostrIdentityInUI(); // Load keys dynamically on initial layout render
         document.getElementById('customInput').value = customInstruction;
+
+        // Specification 1: Language target key input hydration
+        const savedLanguageSetting = localStorage.getItem("puter_target_language") || "";
+        const languageInputContainer = document.getElementById("modelLanguageInput");
+        if (languageInputContainer) {
+            languageInputContainer.value = savedLanguageSetting;
+        }
 
         /* INITIALIZE PERSISTENT USAGE DISPLAY */
         document.getElementById('totalTokenVal').textContent = `Global Total: ${sessionTotalTokens} tokens`;
