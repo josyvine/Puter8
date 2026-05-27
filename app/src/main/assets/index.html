@@ -3103,7 +3103,7 @@
       }
     }
 
-    // Specification 1: Language Input Real-Time Serialization helper with Native Toasts
+    // Specification 1: Language Target Key Input hydration
     function handleLanguageInput(value) {
         const cleanedValue = value.trim();
         if (cleanedValue) {
@@ -3245,7 +3245,7 @@
         disconnectWebSocketLive();
         
         if (window.AndroidInterface) {
-            window.AndroidInterface.nativeLog("Connecting to WebSocket Live API. Model: " + modelId + " Voice: " + voiceName, "native");
+            window.AndroidInterface.logDiagnostic("Attempting WebSockets Live API channel connection. Model: " + modelId, "NETWORK");
         }
         
         const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
@@ -3254,6 +3254,9 @@
             liveWs = new WebSocket(url);
         } catch (err) {
             console.error("Live WebSocket creation exception: ", err);
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebSockets construction threw: " + err.message, "ERROR");
+            }
             return;
         }
         
@@ -3276,7 +3279,7 @@
             };
             liveWs.send(JSON.stringify(setupMessage));
             if (window.AndroidInterface) {
-                window.AndroidInterface.nativeLog("Live session configuration sent.", "native");
+                window.AndroidInterface.logDiagnostic("Live session handshake setup payload sent.", "NETWORK");
             }
         };
         
@@ -3294,7 +3297,7 @@
                 
                 if (payload.setupComplete) {
                     if (window.AndroidInterface) {
-                        window.AndroidInterface.nativeLog("Live Handshake confirmed. Initializing capture stream...", "native");
+                        window.AndroidInterface.logDiagnostic("Handshake confirmed. Initializing capture pipeline...", "NETWORK");
                     }
                     initMicrophoneCaptureLive();
                     
@@ -3308,6 +3311,9 @@
                 
                 if (payload.error) {
                     console.error("Live server error returned:", payload.error);
+                    if (window.AndroidInterface) {
+                        window.AndroidInterface.logDiagnostic("Live server returned error: " + JSON.stringify(payload.error), "ERROR");
+                    }
                     disconnectWebSocketLive();
                     return;
                 }
@@ -3318,7 +3324,7 @@
                     // Unified Live Barge-in Interruption Hook
                     if (content.interrupted) {
                         if (window.AndroidInterface) {
-                            window.AndroidInterface.nativeLog("⚡ Live interruption event received. Silencing playback buffers.", "native");
+                            window.AndroidInterface.logDiagnostic("⚡ Interruption signal received. Halting audio buffers.", "BARGE_IN");
                         }
                         clearPlaybackQueueLive();
                         if (currentLiveBotSpan) {
@@ -3365,12 +3371,18 @@
             }
         };
         
-        liveWs.onclose = () => {
+        liveWs.onclose = (event) => {
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebSocket closed. Code: " + event.code + " | Reason: " + (event.reason || "None"), "NETWORK");
+            }
             disconnectWebSocketLive();
         };
         
         liveWs.onerror = (err) => {
             console.error("Live WebSockets channel error: ", err);
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebSocket protocol error observed.", "ERROR");
+            }
         };
     }
 
@@ -3411,9 +3423,18 @@
             
             source.connect(liveAudioProcessor);
             liveAudioProcessor.connect(liveAudioContext.destination);
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebRTC microphone capture active.", "HARDWARE");
+            }
         } catch (err) {
             console.error("Live microphone acquisition failed: ", err);
-            disconnectWebSocketLive();
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebRTC microphone acquisition failed: " + err.name + " (" + err.message + "). Bypassing microphone stream.", "WEBRTC");
+            }
+            // MODIFIED: Do not call disconnectWebSocketLive() on WebRTC microphone errors! 
+            // In hybrid mode, the native VoiceAgentActivity captures the user speech natively 
+            // and forwards the transcript frame via text. Bypassing mic streaming prevents 
+            // the WebSocket from being terminated early, allowing RAG and TTS responses.
         }
     }
 
@@ -3450,6 +3471,7 @@
         liveWs.send(JSON.stringify(clientContentMsg));
         if (window.AndroidInterface) {
             window.AndroidInterface.nativeLog("Dispatched live text query frame over WebSocket.", "native");
+            window.AndroidInterface.logDiagnostic("Transmitting live text query frame: \"" + promptText.substring(0, Math.min(promptText.length, 30)) + "...\"", "QUERY");
         }
     }
 
@@ -3568,3 +3590,4 @@
   </script>
 </body>
 </html>
+
