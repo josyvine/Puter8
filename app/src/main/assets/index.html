@@ -2119,14 +2119,19 @@
                 parts: [{ text: `USER QUESTION: ${queryText}` }]
             }];
 
-            const payload = {
-                contents: contents,
-                systemInstruction: { parts: [{ text: groundingPrompt }] }
-            };
+            const isAudioModel = modelId.includes("tts") || (globalModelObject && globalModelObject.categories && globalModelObject.categories.includes("audio"));
+            const supportsStreaming = !isAudioModel && !modelId.includes("live-preview") && isStreaming;
+            const isDedicatedTts = modelId.includes("tts");
+
+            const payload = { contents: contents };
+
+            if (!isDedicatedTts) {
+                payload.systemInstruction = { parts: [{ text: groundingPrompt }] };
+            } else {
+                contents[0].parts.unshift({ text: groundingPrompt });
+            }
 
             const payloadJson = JSON.stringify(payload);
-            const isStreaming = window.AndroidInterface ? window.AndroidInterface.getGeminiStreaming() : true;
-            const supportsStreaming = !modelId.includes("tts") && !modelId.includes("live-preview") && isStreaming;
 
             const loader = document.getElementById('ecgLoader');
             if (loader) loader.style.display = 'none';
@@ -2429,7 +2434,7 @@
                 tempSocket.send(JSON.stringify(["EVENT", signedEvent]));
                 window.AndroidInterface.nativeLog("Signed query published successfully. ID: " + eventId, "native");
 
-                // Subscribe to scraped event containing extracted result JSONs matching queryTimestamp
+                // Subscribe to scraped event containing extracted result JSONs matching query timestamp
                 updateLoaderCardText(loaderId, "Waiting for extension crawl response...");
                 const reqFrame = ["REQ", "auto_mode_sub", {
                     kinds: [1],
@@ -2539,7 +2544,10 @@
 
         const payload = { contents: contents };
 
-        if (modelId.includes("tts")) {
+        const isAudioModel = modelId.includes("tts") || (globalModelObject && globalModelObject.categories && globalModelObject.categories.includes("audio"));
+        const isDedicatedTts = modelId.includes("tts");
+
+        if (isAudioModel) {
             payload.generationConfig = {
                 responseModalities: ["AUDIO"],
                 speechConfig: {
@@ -2562,18 +2570,20 @@
             }
         }
 
-        const targetLanguage = localStorage.getItem("puter_target_language") || "";
-        const nativeLanguage = getNativeLanguageName(targetLanguage);
-        if (targetLanguage) {
-            const systemDirective = `IMPORTANT:\nALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n\nNEVER use English.\n\nEven if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}. Do not transliterate. Write strictly in the native script characters of the language.`;
-            payload.systemInstruction = { parts: [{ text: systemDirective }] };
-        } else if (customInstruction) {
-            payload.systemInstruction = { parts: [{ text: customInstruction }] };
+        if (!isDedicatedTts) {
+            const targetLanguage = localStorage.getItem("puter_target_language") || "";
+            const nativeLanguage = getNativeLanguageName(targetLanguage);
+            if (targetLanguage) {
+                const systemDirective = `IMPORTANT:\nALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n\nNEVER use English.\n\nEven if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}. Do not transliterate. Write strictly in the native script characters of the language.`;
+                payload.systemInstruction = { parts: [{ text: systemDirective }] };
+            } else if (customInstruction) {
+                payload.systemInstruction = { parts: [{ text: customInstruction }] };
+            }
         }
 
         const payloadJson = JSON.stringify(payload);
         const isStreaming = window.AndroidInterface ? window.AndroidInterface.getGeminiStreaming() : true;
-        const supportsStreaming = !modelId.includes("tts") && !modelId.includes("live-preview") && isStreaming;
+        const supportsStreaming = !isAudioModel && !modelId.includes("live-preview") && isStreaming;
 
         clearFiles();
 
@@ -2890,14 +2900,19 @@
                 parts: [{ text: `USER QUESTION: ${queryText}` }]
             }];
 
-            const payload = {
-                contents: contents,
-                systemInstruction: { parts: [{ text: groundingPrompt }] }
-            };
+            const isAudioModel = modelId.includes("tts") || (globalModelObject && globalModelObject.categories && globalModelObject.categories.includes("audio"));
+            const isDedicatedTts = modelId.includes("tts");
+            const supportsStreaming = !isAudioModel && !modelId.includes("live-preview") && isStreaming;
+
+            const payload = { contents: contents };
+
+            if (!isDedicatedTts) {
+                payload.systemInstruction = { parts: [{ text: groundingPrompt }] };
+            } else {
+                contents[0].parts.unshift({ text: groundingPrompt });
+            }
 
             const payloadJson = JSON.stringify(payload);
-            const isStreaming = window.AndroidInterface ? window.AndroidInterface.getGeminiStreaming() : true;
-            const supportsStreaming = !modelId.includes("tts") && !modelId.includes("live-preview") && isStreaming;
 
             const loader = document.getElementById('ecgLoader');
             if (loader) loader.style.display = 'none';
