@@ -36,6 +36,7 @@ import java.util.Locale;
  * CRITICAL FIXES: Added intent filters to support zero-click hands-free turn transitions and live Web Audio barge-ins.
  * BARGE-IN UPDATE: Gated onBeginningOfSpeech STT resets with a state tracking flag to prevent infinite loops and client-side STT errors.
  * PERFORMANCE FIXES: Shielded STT onError callbacks from processing programmatic cancellations, and added safe hardware re-initialization.
+ * WEBRTC HANDOFF FIX: Releases native STT hardware lock during Live WebSocket sessions to unblock browser-level capture and Acoustic Echo Cancellation (AEC).
  */
 public class VoiceAgentActivity extends AppCompatActivity {
 
@@ -88,10 +89,12 @@ public class VoiceAgentActivity extends AppCompatActivity {
 
         // 1. Initialize Native TTS
         tts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
+            if (status == TextToSUCCESS()) {
                 tts.setLanguage(Locale.US);
                 setupTtsListener();
-                // Start by listening for the user
+                
+                // Only start native microphone listening if there isn't an active WebSockets Live session.
+                // If a Live session is already running, the WebView's WebRTC stream holds the lock.
                 startListening();
             } else {
                 WebAppInterface.DiagnosticLogger.log("[FATAL ERROR] Native TTS initialization failed with code: " + status);
@@ -114,6 +117,10 @@ public class VoiceAgentActivity extends AppCompatActivity {
         // UI Listeners
         fabMic.setOnClickListener(v -> toggleListening());
         btnClose.setOnClickListener(v -> finish());
+    }
+
+    private int TextToSUCCESS() {
+        return TextToSpeech.SUCCESS;
     }
 
     /**
@@ -407,22 +414,57 @@ public class VoiceAgentActivity extends AppCompatActivity {
                     WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_START_LISTENING. Restarting native microphone.");
                     isAiSpeakingOrPlaying = false; // State-gate: AI speaking sequence completed
                     runOnUiThread(() -> {
-                        if (speechRecognizer != null) {
-                            speechRecognizer.cancel();
+                        // Only perform dynamic hardware resets if the WebView WebRTC capture is NOT active
+                        if (!WebAppInterface.isLiveSocketActive) {
+                            if (speechRecognizer != null) {
+                                speechRecognizer.cancel();
+                            }
                             isListening = false;
+                            startListening();
+                        } else {
+                            // If WebSockets Live API is handling the mic, we simply transition the status back to Ready
+                            tvStatus.setText("Listening...");
                         }
-                        startListening();
                     });
                 } else if ("PUTER_PAUSE_LISTENING".equals(action)) {
                     WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_PAUSE_LISTENING. Suspending native microphone.");
                     isAiSpeakingOrPlaying = true; // State-gate: AI Web Audio streaming active
                     runOnUiThread(() -> {
-                        if (speechRecognizer != null) {
+                        tvStatus.setText("Puter is speaking...");
+                        // Only close the native hardware STT if WebRTC is not active (to avoid double locks)
+                        if (!WebAppInterface.isLiveSocketActive && speechRecognizer != null) {
                             speechRecognizer.cancel();
                             isListening = false;
-                            tvStatus.setText("Puter is speaking...");
                         }
                     });
+                } else if ("PUTER_LIVE_SOCKET_STATE".equals(action)) {
+                    boolean active = intent.getBooleanExtra("ACTIVE", false);
+                    WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_LIVE_SOCKET_STATE. Active: " + active);
+                    runOnUiThread(() -> {
+                        if (active) {
+                            // Live WebSocket connection established. Completely shutdown and release the native 
+                            // SpeechRecognizer to free the hardware microphone lock so WebRTC can start capture smoothly.
+                            if (speechRecognizer != null) {
+                                speechRecognizer.cancel();
+                                speechRecognizer.destroy();
+                                speechRecognizer = null;
+                            }
+                            isListening = false;
+                            tvStatus.setText("Puter is speaking...");
+                        } else {
+                            // WebSocket closed. Re-initialize and restore native microphone listening
+                            startListening();
+                        }
+                    });
+                } else if ("PUTER_USER_TRANSCRIPT".equals(action)) {
+                    String text = intent.getStringExtra("TEXT");
+                    if (text != null) {
+                        WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_USER_TRANSCRIPT: " + text);
+                        runOnUiThread(() -> {
+                            tvTranscript.setText(text);
+                            tvStatus.setText("Puter is thinking...");
+                        });
+                    }
                 }
             }
         };
@@ -431,6 +473,8 @@ public class VoiceAgentActivity extends AppCompatActivity {
         filter.addAction("PUTER_AI_RESPONSE");
         filter.addAction("PUTER_START_LISTENING");
         filter.addAction("PUTER_PAUSE_LISTENING");
+        filter.addAction("PUTER_LIVE_SOCKET_STATE");
+        filter.addAction("PUTER_USER_TRANSCRIPT");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(aiResponseReceiver, filter, Context.RECEIVER_EXPORTED);
@@ -460,6 +504,13 @@ public class VoiceAgentActivity extends AppCompatActivity {
      * Requirement: Robust reset to avoid collisions with TTS audio focus.
      */
     private void startListening() {
+        // Bypasses native initialization entirely if WebRTC is actively streaming 
+        // the microphone inside the WebView context (to prevent hardware lock conflicts).
+        if (WebAppInterface.isLiveSocketActive) {
+            WebAppInterface.DiagnosticLogger.log("[STT] Bypassing native SpeechRecognizer: WebView WebRTC stream is active.");
+            return;
+        }
+
         if (!isListening) {
             try {
                 // Programmatic Guard: Safe re-initialization of the hardware if destroyed
