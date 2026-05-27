@@ -33,6 +33,7 @@ import java.util.Locale;
  * REFINED: Fixed hardware reset logic to ensure user speech is captured during barge-in.
  * ENHANCED: Full-screen hands-free voice loop fully supports both Puter and Gemini conversational engines.
  * MODIFIED: Integrated on-screen dynamic log terminal HUD with copy-to-clipboard functionality.
+ * CRITICAL FIXES: Added intent filters to support zero-click hands-free turn transitions and live Web Audio barge-ins.
  */
 public class VoiceAgentActivity extends AppCompatActivity {
 
@@ -102,7 +103,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
 
         setupSTTListener();
 
-        // 3. Setup Receiver to catch AI responses from MainActivity
+        // 3. Setup Receiver to catch AI responses and Web Audio lifecycle triggers from WebAppInterface
         setupAiResponseReceiver();
 
         // UI Listeners
@@ -238,26 +239,31 @@ public class VoiceAgentActivity extends AppCompatActivity {
             public void onBeginningOfSpeech() {
                 WebAppInterface.DiagnosticLogger.log("[STT] Voice activity detected.");
                 // FIX: BARGE-IN COMPREHENSION RECOVERY
-                // If user talks while AI is speaking, kill the AI speech immediately.
-                if (tts != null && tts.isSpeaking()) {
-                    Log.d(TAG, "Barge-in: Voice detected - performing hardware reset.");
-                    WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Speech detected while AI speaking. Silencing output.");
-                    tts.stop();
-                    isAIspeaking = false;
+                // If user talks while AI is speaking (Native TTS or Web Audio), kill the AI speech immediately.
+                Log.d(TAG, "Barge-in: Voice detected - performing hardware reset.");
+                WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Speech detected. Silencing output queues.");
 
-                    /* 
-                     * REQUIREMENT: Reset the audio buffer immediately.
-                     * We cycle the recognizer to ensure that the AI's audio residue 
-                     * is purged and the user's first words are captured clearly.
-                     */
-                    hardwareHandler.postDelayed(() -> {
-                        if (isListening) {
-                            speechRecognizer.cancel();
-                            isListening = false;
-                            startListening();
-                        }
-                    }, 50); // Minimal delay to allow audio focus release
+                if (tts != null) {
+                    tts.stop();
                 }
+                isAIspeaking = false;
+
+                // Broadcast intent to WebAppInterface to clear custom audio players and Live WebSocket play queues
+                Intent stopIntent = new Intent("PUTER_STOP_SPEAKING");
+                sendBroadcast(stopIntent);
+
+                /* 
+                 * REQUIREMENT: Reset the audio buffer immediately.
+                 * We cycle the recognizer to ensure that the AI's audio residue 
+                 * is purged and the user's first words are captured clearly.
+                 */
+                hardwareHandler.postDelayed(() -> {
+                    if (isListening) {
+                        speechRecognizer.cancel();
+                        isListening = false;
+                        startListening();
+                    }
+                }, 50); // Minimal delay to allow audio focus release
             }
 
             @Override
@@ -354,21 +360,48 @@ public class VoiceAgentActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Set up Intent Receivers to handle zero-click turn transitions.
+     * Integrates direct communication channels with WebAppInterface.
+     */
     private void setupAiResponseReceiver() {
         aiResponseReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if ("PUTER_AI_RESPONSE".equals(intent.getAction())) {
+                String action = intent.getAction();
+                if ("PUTER_AI_RESPONSE".equals(action)) {
                     String aiText = intent.getStringExtra("RESPONSE_TEXT");
                     if (aiText != null) {
-                        // REQUIREMENT #1: AI talks the response lively
                         WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_AI_RESPONSE payload. Synthesizing.");
                         speakAIResponse(aiText);
                     }
+                } else if ("PUTER_START_LISTENING".equals(action)) {
+                    WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_START_LISTENING. Restarting native microphone.");
+                    runOnUiThread(() -> {
+                        if (speechRecognizer != null) {
+                            speechRecognizer.cancel();
+                            isListening = false;
+                        }
+                        startListening();
+                    });
+                } else if ("PUTER_PAUSE_LISTENING".equals(action)) {
+                    WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_PAUSE_LISTENING. Suspending native microphone.");
+                    runOnUiThread(() -> {
+                        if (speechRecognizer != null) {
+                            speechRecognizer.cancel();
+                            isListening = false;
+                            tvStatus.setText("Puter is speaking...");
+                        }
+                    });
                 }
             }
         };
-        IntentFilter filter = new IntentFilter("PUTER_AI_RESPONSE");
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("PUTER_AI_RESPONSE");
+        filter.addAction("PUTER_START_LISTENING");
+        filter.addAction("PUTER_PAUSE_LISTENING");
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(aiResponseReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
