@@ -37,6 +37,7 @@ import java.util.Locale;
  * BARGE-IN UPDATE: Gated onBeginningOfSpeech STT resets with a state tracking flag to prevent infinite loops and client-side STT errors.
  * PERFORMANCE FIXES: Shielded STT onError callbacks from processing programmatic cancellations, and added safe hardware re-initialization.
  * WEBRTC HANDOFF FIX: Releases native STT hardware lock during Live WebSocket sessions to unblock browser-level capture and Acoustic Echo Cancellation (AEC).
+ * PROACTIVE HANDOFF FIX: Recommends destroying and releasing the SpeechRecognizer immediately inside processUserQuery() to bypass 100ms hardware release race conditions.
  */
 public class VoiceAgentActivity extends AppCompatActivity {
 
@@ -483,10 +484,34 @@ public class VoiceAgentActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Sends the user's spoken transcription text directly to the WebView client.
+     * 
+     * CRITICAL WEBRTC HANDOFF FIX: Completely shuts down and destroys the native SpeechRecognizer 
+     * instance immediately inside processUserQuery(). This provides a ~1.5 second buffer of 
+     * silence for the Android OS to release its hardware microphone lock *before* the 
+     * WebView's WebSocket completes the handshake and attempts getUserMedia().
+     */
     private void processUserQuery(String text) {
         runOnUiThread(() -> tvStatus.setText("Puter is thinking..."));
         WebAppInterface.DiagnosticLogger.log("[DISPATCH] Forwarding user query text to local web client.");
-        // Send Broadcast to MainActivity
+        
+        // PROACTIVE MIC-RELEASE HANDOFF:
+        // Destroy and release the SpeechRecognizer IMMEDIATELY on dispatch.
+        // This frees the microphone hardware on the OS level, preventing a 100ms race-condition 
+        // with the WebView's subsequent WebRTC capture setup (getUserMedia).
+        if (speechRecognizer != null) {
+            try {
+                speechRecognizer.cancel();
+                speechRecognizer.destroy();
+                WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] Destroyed active native SpeechRecognizer context on dispatch.");
+            } catch (Exception e) {
+                Log.e(TAG, "Error releasing native SpeechRecognizer on dispatch: " + e.getMessage());
+            }
+            speechRecognizer = null;
+        }
+        isListening = false;
+
         Intent intent = new Intent("PUTER_VOICE_INPUT");
         intent.putExtra("QUERY", text);
         sendBroadcast(intent);
