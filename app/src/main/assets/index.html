@@ -2558,8 +2558,13 @@
                 alert("Please configure a valid Gemini Access API key first in Settings.");
                 return;
             }
-            if (liveWs && liveWs.readyState === WebSocket.OPEN) {
-                sendLiveTextQuery(promptText, files);
+            // Check if socket is already connected or in a handshake sequence to block duplicates
+            if (liveWs && (liveWs.readyState === WebSocket.OPEN || liveWs.readyState === WebSocket.CONNECTING)) {
+                if (liveWs.readyState === WebSocket.OPEN) {
+                    sendLiveTextQuery(promptText, files);
+                } else {
+                    pendingLiveQuery = { text: promptText, files: files };
+                }
             } else {
                 pendingLiveQuery = { text: promptText, files: files };
                 connectWebSocketLive(apiKey, modelId, voiceName, useSearch);
@@ -2996,7 +3001,7 @@
                 }
             } catch (e) {
                 const targetSpan = document.getElementById(`stream-content-${msgId}`);
-                if (targetSpan) targetSpan.innerHTML = "RAG execution failed: " + e.message;
+                if (targetSpan) targetSpan.innerHTML = "RAG Synthesize error: " + e.message;
             }
             return;
         }
@@ -3299,6 +3304,10 @@
                 if (payload.setupComplete) {
                     if (window.AndroidInterface) {
                         window.AndroidInterface.logDiagnostic("Handshake confirmed. Initializing capture pipeline...", "NETWORK");
+                        // Notify Android to cleanly release native SpeechRecognizer locks
+                        if (window.AndroidInterface.setLiveSocketActive) {
+                            window.AndroidInterface.setLiveSocketActive(true);
+                        }
                     }
                     initMicrophoneCaptureLive();
                     
@@ -3365,6 +3374,10 @@
                     
                     if (content.inputTranscription && content.inputTranscription.text) {
                         appendChat("User", content.inputTranscription.text, false, []);
+                        // Forward user transcriptions dynamically to native VoiceAgentActivity
+                        if (window.AndroidInterface && window.AndroidInterface.broadcastUserTranscript) {
+                            window.AndroidInterface.broadcastUserTranscript(content.inputTranscription.text);
+                        }
                     }
                 }
             } catch (e) {
@@ -3516,6 +3529,9 @@
     }
 
     function disconnectWebSocketLive() {
+        if (window.AndroidInterface && window.AndroidInterface.setLiveSocketActive) {
+            window.AndroidInterface.setLiveSocketActive(false);
+        }
         if (liveMicStream) {
             try {
                 liveMicStream.getTracks().forEach(track => track.stop());
@@ -3591,4 +3607,3 @@
   </script>
 </body>
 </html>
-
