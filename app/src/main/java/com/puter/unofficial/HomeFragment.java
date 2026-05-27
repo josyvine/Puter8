@@ -21,6 +21,8 @@ import com.puter.unofficial.databinding.FragmentHomeBinding;
  * It initializes the JavaScript bridge and handles native feature integration.
  * 
  * UPDATED: Integrated WebViewAssetLoader support and Secure Origin migration.
+ * CRITICAL FIX: Explicitly stops the native background standard VoiceManager's microphone capture 
+ * inside the fragment lifecycle to eliminate hardware contention with the active foreground voice agent.
  */
 public class HomeFragment extends Fragment {
 
@@ -32,7 +34,6 @@ public class HomeFragment extends Fragment {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        // FIXED: Removed the extra ".binding =" typo that caused the compiler crash
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -113,11 +114,29 @@ public class HomeFragment extends Fragment {
         }
     }
 
+    /**
+     * Lifecycle hook called when the fragment is paused.
+     * 
+     * CRITICAL FIX: Stops the background standard STT engine to prevent hardware mic lockouts 
+     * when VoiceAgentActivity takes foreground priority, and selectively preserves the active 
+     * WebKit execution engine if voice session streams are running.
+     */
     @Override
     public void onPause() {
         super.onPause();
+        
+        // De-register background STT recognizers in MainActivity to prevent hardware conflicts
+        if (voiceManager != null) {
+            try {
+                voiceManager.stopListening();
+                WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] HomeFragment onPause: Suspended native background microphone.");
+            } catch (Exception e) {
+                Log.e("HomeFragment", "Failed to suspend standard background VoiceManager: " + e.getMessage());
+            }
+        }
+
         if (webView != null) {
-            // MODIFIED: Prevent pausing background socket streams and JavaScript loops
+            // Prevent pausing background socket streams and JavaScript loops
             // if the hands-free continuous voice conversation loop is running.
             if (!isVoiceModeActive()) {
                 webView.onPause();
