@@ -16,240 +16,3396 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
 
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; width: 100vw; overflow-x: hidden; }
+
+    header { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: #333; color: #fff; padding: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+    h2 { margin: 0; font-size: 1.3em; }
+    .menu-button { cursor: pointer; font-size: 28px; padding: 5px; }
+
+    /* FIX #3: SCROLLABLE THREE-DOT MENU */
+    .dropdown { 
+      position: absolute; 
+      top: 60px; 
+      right: 10px; 
+      background: #fff; 
+      color: #333; 
+      border: 1px solid #ccc; 
+      z-index: 200; 
+      padding: 5px 0; 
+      display: none; 
+      width: 240px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2); 
+      border-radius: 8px; 
+      max-height: 75vh; 
+      overflow-y: auto; 
+      overscroll-behavior: contain; 
+    }
+    .dropdown.show { display: block; }
+    .dropdown li { list-style: none; margin: 0; cursor: pointer; padding: 12px 20px; border-bottom: 1px solid #f0f0f0; font-size: 16px; }
+    .dropdown li:last-child { border-bottom: none; }
+    .dropdown li:hover { background: #eee; }
+
+    /* Session List styling inside dropdown */
+    .session-divider { background: #f9f9f9; font-weight: bold; color: #888; font-size: 12px; padding: 5px 20px; cursor: default; border-top: 1px solid #eee; }
+
+    /* NEW: Usage Details styling in dropdown */
+    .usage-divider { background: #e8f0fe; font-weight: bold; color: #1a73e8; font-size: 11px; padding: 10px 20px; cursor: default; border-top: 1px solid #d1e3ff; line-height: 1.4; }
+    .usage-val { color: #333; font-family: monospace; display: block; margin-top: 2px; }
+
+    .settings-container { position: fixed; top: 60px; left: 0; width: 100%; background: #fff; z-index: 90; padding: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-bottom: 1px solid #ddd; }
+
+    /* --- NEW CUSTOM ACCORDION SELECTOR CSS --- */
+    .custom-select-container { position: relative; width: 100%; z-index: 200; }
+    .custom-select-trigger { width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #bbb; background-color: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; height: 48px; }
+    .custom-select-trigger:hover { background-color: #f9f9f9; }
+    .accordion-menu { position: absolute; top: 100%; left: 0; width: 100%; background: #fff; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 60vh; overflow-y: auto; display: none; }
+    .accordion-menu.show { display: block; }
+
+    .acc-section { border-bottom: 1px solid #eee; }
+    .acc-section:last-child { border-bottom: none; }
+    .acc-header { padding: 12px 15px; font-weight: bold; background: #f5f5f5; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: #333; }
+    .acc-header:hover { background: #ebebeb; }
+    .acc-content { display: none; background: #fff; }
+    .acc-content.open { display: block; }
+
+    .acc-sub-header { padding: 10px 15px 10px 20px; font-weight: 600; color: #555; cursor: pointer; border-bottom: 1px solid #f9f9f9; display: flex; justify-content: space-between; align-items: center; }
+    .acc-sub-header:hover { background: #f0f0f0; }
+    .acc-sub-content { display: none; }
+    .acc-sub-content.open { display: block; }
+
+    .model-item { padding: 12px 15px 12px 35px; cursor: pointer; border-bottom: 1px solid #f9f9f9; font-size: 15px; color: #444; }
+    .model-item:last-child { border-bottom: none; }
+    .model-item:hover { background: #e8f0fe; color: #1a73e8; }
+
+    /* --- ENHANCEMENT: IMAGE GENERATION UI --- */
+    .aspect-ratio-container { display: none; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+    .aspect-ratio-select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: #f9f9f9; font-size: 14px; outline: none; cursor: pointer; }
+    .ai-generated-image { width: 100%; max-width: 500px; border-radius: 16px; margin-top: 10px; border: 1px solid #ddd; display: block; }
+
+    /* --- STEP 2: NATIVE DOWNLOAD FEATURING THIN STYLE IN Bot MESSAGE HEADER --- */
+    .msg-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin-bottom: 4px;
+    }
+    .download-icon-tiny {
+      font-size: 18px;
+      cursor: pointer;
+      color: #5f6368;
+      transition: color 0.2s ease-in-out;
+    }
+    .download-icon-tiny:hover {
+      color: #1a73e8;
+    }
+
+    .chat-container { display: flex; flex-direction: column; flex: 1; width: 100%; position: relative; z-index: 5; padding: 15px; margin-top: 130px; margin-bottom: 120px; }
+    .chat-log { flex: 1; width: 100%; }
+
+    .message { display: flex; align-items: flex-start; margin-bottom: 20px; width: 100%; -webkit-user-select: none; user-select: none; }
+    .user-message { flex-direction: row-reverse; }
+    /* ENHANCEMENT: Adjusted max-width to 90% for better code readability */
+    .message-content { flex-grow: 0; max-width: 90%; padding: 12px 16px; border-radius: 18px; font-size: 16px; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.15); overflow-wrap: break-word; }
+    .user-message .message-content { background-color: #007bff; color: white; border-bottom-right-radius: 4px; }
+    .bot-message .message-content { background-color: #e5e5ea; color: black; border-bottom-left-radius: 4px; }
+
+    /* --- NEW FEATURE: IN-CHAT THUMBNAILS --- */
+    .chat-thumbnail-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 8px; }
+    .user-message .chat-thumbnail-container { border-top: 1px solid rgba(255,255,255,0.3); }
+    .chat-inline-thumb { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(0,0,0,0.1); background: #fff; }
+    .chat-inline-file { width: 60px; height: 60px; border-radius: 6px; background: #f8f9fa; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; color: #1a73e8; border: 1px solid rgba(0,0,0,0.1); text-align: center; }
+
+    /* --- ENHANCEMENT: ECG LOADER CSS --- */
+    .loader-container { display: none; flex-direction: column; align-items: center; justify-content: center; margin: 20px 0; width: 100%; }
+    .ecg-graph { width: 120px; height: 30px; }
+    .ecg-path { fill: none; stroke: #1a73e8; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 200; stroke-dashoffset: 200; animation: ecg-flow 1.5s linear infinite; }
+    @keyframes ecg-flow { 0% { stroke-dashoffset: 200; } 100% { stroke-dashoffset: -200; } }
+    .loader-text { font-size: 13px; color: #666; margin-top: 8px; font-weight: bold; }
+
+    /* --- ENHANCEMENT: CONTEXT MENU CSS --- */
+    .context-menu { position: fixed; background: #fff; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); display: none; z-index: 1000; min-width: 180px; padding: 5px 0; border: 1px solid #ddd; }
+    .context-menu li { list-style: none; padding: 12px 20px; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #333; }
+    .context-menu li:hover { background: #f0f0f0; }
+    .context-menu li span { font-size: 18px; color: #1a73e8; }
+    .delete-action { color: #d93025 !important; }
+    .delete-action span { color: #d93025 !important; }
+
+    /* --- FIXED SEARCH BAR CSS WITH DYNAMIC TRANSFORM --- */
+    .chat-controls { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; padding: 10px; z-index: 110; border-top: 1px solid #ddd; }
+    .search-bar-container { display: flex; flex-direction: column; width: 100%; max-width: 600px; border-radius: 28px; background-color: white; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); padding: 6px 10px; position: relative; min-height: 56px; height: auto !important; border: 1px solid #dadce0; margin: 0 auto; transition: all 0.2s ease; }
+
+    /* --- NEW FEATURE: THUMBNAIL CONTAINER --- */
+    .thumbnail-container { display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 40px; width: 100%; }
+    .thumbnail { position: relative; width: 42px; height: 42px; border-radius: 8px; border: 1px solid #ddd; background: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: visible; }
+    .thumbnail img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+    .thumbnail .file-ext-icon { font-size: 18px; color: #1a73e8; font-weight: bold; }
+    .thumb-remove-btn { position: absolute; top: -6px; right: -6px; background: #d93025; color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; border: 1px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer; }
+
+    .input-wrapper { display: flex; align-items: center; width: 100%; position: relative; }
+
+    /* FIX #1: PROFESSIONAL TEXTAREA UPGRADE CSS */
+    .search-bar-container textarea { 
+        flex-grow: 1; 
+        border: none; 
+        outline: none; 
+        padding: 10px 0; 
+        font-size: 1.1em; 
+        color: #202124; 
+        background-color: transparent; 
+        padding-left: 45px;   
+        padding-right: 90px;  
+        height: 44px; 
+        max-height: 180px; 
+        resize: none; 
+        overflow-y: hidden; 
+        line-height: 1.4; 
+        font-family: inherit;
+    }
+
+    /* Rules for all buttons in the bar */
+    .search-bar-container .action-button { 
+        background: none; 
+        border: none; 
+        cursor: pointer; 
+        padding: 0; 
+        border-radius: 50%; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        color: #5f6368; 
+        width: 44px; 
+        height: 44px; 
+        position: absolute; 
+        bottom: 0; 
+        z-index: 10; 
+    }
+
+    .upload-btn-cls { left: 6px; }
+    .mic-btn-cls { right: 48px; }
+    .voice-agent-btn-cls { right: 6px; color: #1a73e8; }
+
+    /* FIX: Specificity adjustment to make the Send button visible */
+    .search-bar-container .send-btn-cls { 
+        right: 6px; 
+        background-color: #1a73e8 !important; /* Force blue background */
+        color: white !important;              /* Force white icon */
+        display: none; 
+        border-radius: 50%; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .send-btn-cls span { font-variation-settings: 'FILL' 1; }
+
+    /* VISIBILITY LOGIC */
+    .search-bar-container.has-text .mic-btn-cls,
+    .search-bar-container.has-text .voice-agent-btn-cls { 
+        display: none !important; 
+    }
+
+    .search-bar-container.has-text .send-btn-cls { 
+        display: flex !important; 
+    }
+
+    /* Modal Styling */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+    .modal { background: #fff; padding: 25px; width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto; }
+    .modal h3 { margin-top: 0; margin-bottom: 15px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .modal button { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+    .btn-primary { background: #1a73e8; color: #fff; }
+    .btn-secondary { background: #eee; color: #333; }
+
+    /* --- ENHANCEMENT: VERTICAL-ONLY CODE BLOCKS STYLING --- */
+    .code-block-container { background: #1e1e1e; border-radius: 8px; margin: 15px 0; width: 100%; border: 1px solid #333; overflow: hidden; }
+    .code-header { background: #2d2d2d; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; color: #aaa; font-size: 12px; }
+    .code-header .code-actions { display: flex; gap: 12px; }
+    .code-header .action-icon { cursor: pointer; display: flex; align-items: center; gap: 4px; color: #aaa; transition: color 0.2s; }
+    .code-header .action-icon:hover { color: #fff; }
+    code { display: block; font-family: 'monospace'; line-height: 1.5; padding: 15px; white-space: pre-wrap !important; word-break: break-word !important; overflow-x: hidden; }
+
+    /* --- ENHANCEMENT: PREVIEW MODAL STYLING --- */
+    #previewModal { display: none; position: fixed; inset: 0; z-index: 2000; background: #fff; flex-direction: column; }
+    .preview-header { background: #333; color: #fff; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; }
+    .preview-header h3 { margin: 0; font-size: 16px; font-weight: normal; }
+    .preview-close { background: none; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: transform 0.2s; }
+    .preview-close:active { transform: scale(0.9); }
+    #previewIframe { flex: 1; width: 100%; border: none; background: #fff; }
+
+    #imagePreview { display: none; } /* DEPRECATED - REPLACED BY THUMBNAIL CONTAINER */
+  </style>
 </head>
 <body>
 
+  <header>
+    <h2>Puter Unofficial</h2>
+    <div class="menu-button" id="puterMenuButton">
+      <span class="material-symbols-outlined">more_vert</span>
+    </div>
+    <ul class="dropdown" id="puterDropdownMenu">
+      <li id="authOption" onclick="handleAuthAction()">Sign In</li>
+      <li id="modelSourceToggle" onclick="toggleModelSource()">Enable Live Models</li>
+      <li onclick="openModal('customModal')">Custom Instruction</li>
+      <li onclick="openModal('historyModal')">View History</li>
+      <li onclick="newSession()">New Session</li>
+      <li id="toggleSettingsBtn" onclick="toggleSettingsUI()">Hide Settings</li>
+      <li onclick="openModal('helpModal')">Help</li>
+
+      <!-- NEW BROWSER TAB TRANSITION TRIGGERS -->
+      <li onclick="window.AndroidInterface.loadLocalUrl('browser.html')">Browse Website</li>
+
+      <!-- =========================================================================
+       * NEW: OPEN-TEXT REPLY LANGUAGE CONFIGURATION PANEL (Specification 1)
+       * ========================================================================= -->
+      <li style="padding: 12px 20px; cursor: default; border-bottom: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-weight: bold; color: #555; font-size: 13px;">Reply Language</div>
+        <input type="text" id="modelLanguageInput" placeholder="Enter reply language (e.g., Malayalam, Spanish)..." onchange="handleLanguageInput(this.value)" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none; background: #f9f9f9; box-sizing: border-box;" />
+      </li>
+
+      <!-- FIX #2: PERSISTENT USAGE TELEMETRY UI -->
+      <li id="usageDisplay" class="usage-divider">
+        GENERATION USAGE
+        <span class="usage-val" id="lastTokenVal">Last: 0 tokens</span>
+        <span class="usage-val" id="lastCreditVal">Cost: $0.0000</span>
+        <span class="usage-val" id="totalTokenVal" style="margin-top: 8px; border-top: 1px solid rgba(26,115,232,0.2); padding-top: 4px;">Global Total: 0 tokens</span>
+        <span class="usage-val" id="totalCreditVal">Global Cost: $0.0000</span>
+      </li>
+
+      <!-- REQUIREMENT #3: DYNAMIC SESSION LIST INJECTED HERE -->
+      <div id="dynamicSessions"></div>
+
+      <!-- NEW "WEB SCRAP" SUB-SECTION DYNAMICALLY INJECTED HERE -->
+      <div id="dynamicScrapedItems"></div>
+
+      <!-- =========================================================================
+       * NEW: NOSTR NATIVE CRYPTO IDENTITY PANEL
+       * ========================================================================= -->
+      <li class="session-divider" style="background:#e8f0fe; color:#1a73e8;">Nostr Identity</li>
+      <li style="padding: 10px 20px; font-size: 13px; line-height: 1.5; cursor: default;">
+        <div style="font-weight: bold; color: #555;">Public ID (npub)</div>
+        <div id="nostrNpubDisplay" style="font-family: monospace; font-size: 11px; word-break: break-all; margin: 4px 0;">Loading...</div>
+        <button class="btn-primary" onclick="copyNostrKey('pub')" style="padding: 6px 12px; font-size: 11px; margin-top: 4px; border-radius: 4px; border:none; color:white; cursor:pointer; width: 100%;">Copy npub</button>
+      </li>
+      <li style="padding: 10px 20px; font-size: 13px; line-height: 1.5; cursor: default; border-bottom: 1px solid #eee;">
+        <div style="font-weight: bold; color: #555;">Private Key (nsec)</div>
+        <div id="nostrNsecDisplay" style="font-family: monospace; font-size: 11px; word-break: break-all; margin: 4px 0;">Loading...</div>
+        <button class="btn-primary" onclick="copyNostrKey('priv')" style="padding: 6px 12px; font-size: 11px; margin-top: 4px; border-radius: 4px; border:none; color:white; cursor:pointer; width: 100%;">Copy nsec</button>
+      </li>
+
+      <!-- =========================================================================
+       * NEW: EXPANDABLE NATIVE GEMINI ACCORDION SETTINGS PANEL
+       * ========================================================================= -->
+      <li class="session-divider" id="geminiMenuDivider" style="background:#e8f0fe; color:#1a73e8; display:none;">Gemini Configuration</li>
+      <li id="geminiToggleDrawerHeader" onclick="toggleGeminiDrawer()" style="display:none; font-weight:bold; cursor:pointer; justify-content:space-between; align-items:center;">
+        <span>Gemini Settings</span>
+        <span class="material-symbols-outlined" id="geminiDrawerChevron">expand_more</span>
+      </li>
+      <div id="geminiSettingsDrawer" style="display:none; padding:10px 20px; background:#f9f9f9; border-bottom:1px solid #eee; flex-direction:column; gap:10px; box-sizing:border-box;">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label style="font-size:11px; font-weight:bold; color:#555;">API Access Key</label>
+          <input type="password" id="geminiApiKeyInput" placeholder="Paste Gemini API Key..." onchange="handleGeminiApiKeyChange(this.value)" style="width:100%; padding:8px 12px; border:1px solid #ccc; border-radius:8px; font-size:13px; outline:none; background:#fff; box-sizing:border-box;" />
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px;">
+          <label style="font-size:11px; font-weight:bold; color:#555; cursor:pointer; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="geminiStreamToggle" onchange="handleGeminiStreamToggle(this.checked)" checked style="width:16px; height:16px;" />
+            <span>Enable Streaming</span>
+          </label>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; margin-top:5px;">
+          <label style="font-size:11px; font-weight:bold; color:#555;">Grounding Mode</label>
+          <select id="geminiGroundingSelect" onchange="handleGeminiGroundingChange(this.value)" style="width:100%; padding:8px 12px; border:1px solid #ccc; border-radius:8px; font-size:13px; outline:none; background:#fff; box-sizing:border-box;">
+            <option value="none">None (Standard)</option>
+            <option value="search">Google Search</option>
+            <option value="maps">Google Maps</option>
+          </select>
+        </div>
+        <!-- NEW: ADOPTED VOICE CHARACTER VARIABLE UI -->
+        <div style="display:flex; flex-direction:column; gap:4px; margin-top:5px;">
+          <label style="font-size:11px; font-weight:bold; color:#555;">Voice Character</label>
+          <select id="geminiVoiceSelect" onchange="handleGeminiVoiceChange(this.value)" style="width:100%; padding:8px 12px; border:1px solid #ccc; border-radius:8px; font-size:13px; outline:none; background:#fff; box-sizing:border-box;">
+            <option value="Aoede">Aoede (Breezy)</option>
+            <option value="Charon">Charon (Informative)</option>
+            <option value="Kore">Kore (Firm)</option>
+            <option value="Puck" selected>Puck (Upbeat)</option>
+            <option value="Fenrir">Fenrir (Excitable)</option>
+            <option value="Leda">Leda (Youthful)</option>
+            <option value="Zephyr">Zephyr (Bright)</option>
+          </select>
+        </div>
+      </div>
+    </ul>
+  </header>
+
+  <div class="settings-container" id="settingsBar">
+    <div class="custom-select-container">
+      <div id="modelSelectTrigger" class="custom-select-trigger" onclick="toggleAccordionMenu()">
+        <span id="selectedModelText">Loading models...</span>
+        <span class="material-symbols-outlined">expand_more</span>
+      </div>
+      <div id="accordionMenu" class="accordion-menu">
+         <!-- Dynamically populated by JS -->
+      </div>
+    </div>
+
+    <!-- ENHANCEMENT: ASPECT RATIO DROPDOWN -->
+    <div id="aspectRatioContainer" class="aspect-ratio-container">
+        <select id="aspectRatioSelect" class="aspect-ratio-select">
+           <option value="1:1">1:1 Square (Profile/Logo)</option>
+           <option value="16:9">16:9 Landscape (YouTube/Wallpapers)</option>
+           <option value="9:16">9:16 Portrait (Reels/Shorts)</option>
+           <option value="4:3">4:3 Classic</option>
+           <option value="3:4">3:4 Portrait</option>
+           <option value="21:9">21:9 Cinematic</option>
+        </select>
+    </div>
+  </div>
+
+  <div class="chat-container">
+    <div id="puterChatLog" class="chat-log"></div>
+
+    <!-- ENHANCEMENT: ECG GRAPH LOADER -->
+    <div id="ecgLoader" class="loader-container">
+        <svg class="ecg-graph" viewBox="0 0 100 30">
+            <path class="ecg-path" d="M0,15 L25,15 L30,5 L35,25 L40,15 L60,15 L65,0 L75,30 L80,15 L100,15" />
+        </svg>
+        <div id="loaderText" class="loader-text">AI is answering...</div>
+    </div>
+  </div>
+
+  <div class="chat-controls">
+    <div class="search-bar-container" id="puterSearchBarContainer">
+
+      <!-- ENHANCEMENT: DYNAMIC FILE THUMBNAILS -->
+      <div id="thumbnailArea" class="thumbnail-container"></div>
+
+      <div class="input-wrapper">
+          <!-- 1. Upload Icon: Extreme Left -->
+          <button class="action-button upload-btn-cls" onclick="window.AndroidInterface.openFilePicker()">
+            <span class="material-symbols-outlined">add</span>
+          </button>
+
+          <!-- FIX #1: TEXTAREA REPLACEMENT -->
+          <textarea id="puterChatInput" placeholder="Ask Puter..." oninput="handleInput()" autocomplete="off" rows="1"></textarea>
+
+          <!-- 2. Microphone: Right side, left of TTS -->
+          <button class="action-button mic-btn-cls" onclick="triggerMic()">
+            <span class="material-symbols-outlined">mic</span>
+          </button>
+
+          <!-- 3. TTS/Voice Agent: Extreme Right -->
+          <button class="action-button voice-agent-btn-cls" onclick="triggerVoiceAgent()">
+            <span class="material-symbols-outlined">auto_awesome</span>
+          </button>
+
+          <!-- 4. Send Button: Replaces Mic and TTS when text is present -->
+          <button class="action-button send-btn-cls" id="sendBtn" onclick="sendMessage(false)">
+            <span class="material-symbols-outlined">send</span>
+          </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENHANCEMENT: DYNAMIC CONTEXT-AWARE CONTEXT MENU (SEVEN ACTIVE OPTIONS) -->
+  <ul id="customContextMenu" class="context-menu">
+      <li onclick="handleMenuAction('copy')"><span class="material-symbols-outlined">content_copy</span> Copy Chat</li>
+      <li onclick="handleMenuAction('read')"><span class="material-symbols-outlined">volume_up</span> Read Aloud</li>
+      <li onclick="handleMenuAction('delete')" class="delete-action"><span class="material-symbols-outlined">delete</span> Delete Chat</li>
+      <li onclick="handleMenuAction('refresh_relay')"><span class="material-symbols-outlined">sync</span> Refresh Relay</li>
+      <li id="menuToggleModeOption" onclick="handleMenuAction('toggle_mode')"><!-- Dynamically evaluated toggle button --></li>
+      <li id="menuToggleProviderOption" onclick="handleMenuAction('toggle_provider')"><!-- puter / gemini toggle --></li>
+      <li onclick="handleMenuAction('end_session')"><span class="material-symbols-outlined">power_settings_new</span> End Session</li>
+  </ul>
+
+  <!-- HELP MODAL -->
+  <div class="modal-overlay" id="helpModal">
+    <div class="modal">
+      <h3>Puter Unofficial Help</h3>
+      <p>• <b>Text Chat:</b> Type your message and hit send.</p>
+      <p>• <b>Long-Press:</b> Hold any chat bubble to Copy, Delete, or Read Aloud.</p>
+      <p>• <b>Vision:</b> Use the '+' icon to upload images and files for the AI to analyze.</p>
+      <p>• <b>Sessions:</b> Long-press any session in the menu to delete it permanently.</p>
+      <p>• <b>Voice Agent:</b> Tap the sparkles for a full-screen, hands-free conversation mode.</p>
+      <p>• <b>Sign In:</b> Login to Puter to enable specialized models and persistent memory.</p>
+      <div class="modal-buttons">
+        <button class="btn-secondary" onclick="closeModal('helpModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOM INSTRUCTION MODAL -->
+  <div class="modal-overlay" id="customModal">
+    <div class="modal">
+      <h3>Custom Instruction</h3>
+      <p style="font-size: 14px; color: #666;">Set a system behavior for the AI models.</p>
+      <textarea id="customInput" style="width:100%; height:120px; padding:10px; border-radius:8px; border:1px solid #ccc; outline:none;"></textarea>
+      <div class="modal-buttons">
+        <button class="btn-secondary" onclick="closeModal('customModal')">Cancel</button>
+        <button class="btn-primary" onclick="saveCustom()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY MODAL -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal">
+      <h3>Chat History</h3>
+      <div id="historyList" style="max-height: 300px; overflow-y: auto; font-size: 14px;">
+        <!-- Dynamically filled by JS -->
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-secondary" onclick="closeModal('helpModal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENHANCEMENT: FULL-SCREEN PREVIEW MODAL -->
+  <div id="previewModal">
+      <div class="preview-header">
+          <h3>HTML Preview</h3>
+          <button class="preview-close" onclick="closePreview()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <iframe id="previewIframe"></iframe>
+  </div>
+
   <script>
-    /* ============================================================================
-     * ENHANCED MICROPHONE ERROR DIAGNOSTIC SYSTEM
-     * ============================================================================ */
-    
-    const MicrophoneDiagnostics = {
-      // Comprehensive error analysis
-      analyzeGetUserMediaError: function(err) {
-        const diagnostic = {
-          errorType: err.name || "UnknownError",
-          errorMessage: err.message || "No message provided",
-          timestamp: new Date().toISOString(),
-          possibleCauses: [],
-          suggestedFixes: [],
-          systemInfo: {
-            browser: navigator.userAgent,
-            audioDevices: "pending"
-          }
+    /* --- CRYPTOGRAPHIC BECH32 DECODER & HEX TRANSLATION UTILITIES --- */
+    const BECH32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+    function decodeBech32(bechString) {
+        const separatorIndex = bechString.lastIndexOf('1');
+        if (separatorIndex === -1) throw new Error("Invalid Bech32 key structure configuration.");
+        const hrp = bechString.slice(0, separatorIndex);
+        if (hrp !== "npub" && hrp !== "nsec") throw new Error("Key structure prefix is not npub or nsec.");
+
+        const dataString = bechString.slice(separatorIndex + 1);
+        const data = [];
+        for (let i = 0; i < dataString.length; i++) {
+            const charIndex = BECH32_ALPHABET.indexOf(dataString[i]);
+            if (charIndex === -1) throw new Error("Bech32 contains prohibited structures.");
+            data.push(charIndex);
+        }
+
+        const values = data.slice(0, -6); // Strip 6-character checksum
+        let accumulator = 0;
+        let bits = 0;
+        const bytes = [];
+        const maxAccumulator = (1 << 12) - 1;
+
+        for (let i = 0; i < values.length; i++) {
+            accumulator = ((accumulator << 5) | values[i]) & maxAccumulator;
+            bits += 5;
+            while (bits >= 8) {
+                bits -= 8;
+                bytes.push((accumulator >> bits) & 0xff);
+            }
+        }
+        return new Uint8Array(bytes);
+    }
+
+    function bytesToHex(bytes) {
+        return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    /* --- NATIVE SCRIPT TRANSLATION DICTIONARY FOR LANGUAGE COMPLIANCE --- */
+    function getNativeLanguageName(lang) {
+        if (!lang) return "";
+        const normalized = lang.trim().toLowerCase();
+        const mapping = {
+            'malayalam': 'മലയാളം (Malayalam)',
+            'tamil': 'தமிழ் (Tamil)',
+            'hindi': 'ഹിन्दी (Hindi)',
+            'telugu': 'తెలుగు (Telugu)',
+            'kannada': 'കನ್ನಡ (Kannada)',
+            'spanish': 'Español (Spanish)',
+            'french': 'Français (French)',
+            'german': 'Deutsch (German)',
+            'russian': 'Русский (Russian)',
+            'japanese': '日本語 (Japanese)',
+            'chinese': '中文 (Chinese)',
+            'arabic': 'العربية (Arabic)',
+            'bengali': 'বাংলা (Bengali)'
         };
+        return mapping[normalized] || lang;
+    }
 
-        switch(err.name) {
-          case "NotReadableError":
-            diagnostic.possibleCauses = [
-              "HARDWARE_IN_USE: Microphone is already being used by another app/browser tab",
-              "PERMISSION_DENIED_OS: Operating system denied microphone access",
-              "HARDWARE_UNAVAILABLE: Microphone hardware not found or disconnected",
-              "DRIVER_ISSUE: Audio driver not responding or outdated",
-              "BROWSER_PERMISSION: Previously denied permission (check browser settings)",
-              "SANDBOX_RESTRICTION: WebView sandbox preventing hardware access"
-            ];
-            diagnostic.suggestedFixes = [
-              "1. Close other apps/tabs using the microphone",
-              "2. Check Settings > Privacy > Microphone - ensure app is enabled",
-              "3. Restart the app and try again",
-              "4. Reconnect or test microphone in system settings",
-              "5. Check Android logs for hardware driver errors",
-              "6. Update or reinstall audio drivers",
-              "7. Check if app has RECORD_AUDIO permission in manifest"
-            ];
-            break;
+    /* --- ENHANCEMENT: MARKED CONFIGURATION & CUSTOM RENDERER --- */
+    const renderer = new marked.Renderer();
+    renderer.code = function(code, language) {
+        const lang = language || 'plaintext';
+        // Safe encode to prevent breaking inline HTML onclick attributes
+        const safeCode = encodeURIComponent(code);
 
-          case "NotAllowedError":
-            diagnostic.possibleCauses = [
-              "USER_DENIED: User clicked 'Deny' on permission prompt",
-              "PERMISSION_REVOKED: Permission was previously granted but later revoked",
-              "HTTPS_REQUIRED: Not using HTTPS (required for getUserMedia in prod)",
-              "PRIVATE_BROWSING: Private/Incognito mode blocking hardware access"
-            ];
-            diagnostic.suggestedFixes = [
-              "1. Grant microphone permission when prompted",
-              "2. Check App > Settings > Permissions and enable Microphone",
-              "3. For web: Ensure using HTTPS",
-              "4. Disable Private/Incognito mode if applicable",
-              "5. Clear browser cache/site data and retry"
-            ];
-            break;
-
-          case "SecurityError":
-            diagnostic.possibleCauses = [
-              "CORS_VIOLATION: Cross-origin request blocked",
-              "INSECURE_CONTEXT: Running in non-secure context",
-              "FEATURE_POLICY: Feature policy blocking microphone"
-            ];
-            diagnostic.suggestedFixes = [
-              "1. Ensure running on HTTPS",
-              "2. Check iframe allow attributes include 'microphone'",
-              "3. Review Content Security Policy headers"
-            ];
-            break;
-
-          case "TypeError":
-            diagnostic.possibleCauses = [
-              "API_UNAVAILABLE: getUserMedia not available on this platform",
-              "INVALID_CONSTRAINTS: Invalid audio constraints passed"
-            ];
-            diagnostic.suggestedFixes = [
-              "1. Check browser/platform supports getUserMedia API",
-              "2. Verify audio constraint parameters are valid",
-              "3. Test in native implementation if available"
-            ];
-            break;
-
-          default:
-            diagnostic.possibleCauses = ["UNKNOWN_ERROR: Unidentified microphone acquisition failure"];
-            diagnostic.suggestedFixes = ["Check browser console for additional error context"];
+        let previewBtn = '';
+        if (lang.toLowerCase() === 'html' || lang.toLowerCase() === 'xml') {
+            previewBtn = `<div class="action-icon" onclick="showPreview(decodeURIComponent('${safeCode}'))"><span class="material-symbols-outlined" style="font-size:16px;">visibility</span> Preview</div>`;
         }
 
-        return diagnostic;
-      },
-
-      // Log comprehensive diagnostic to console and system
-      logDiagnostic: function(diagnostic) {
-        console.error("=".repeat(80));
-        console.error("MICROPHONE ACQUISITION DIAGNOSTIC REPORT");
-        console.error("=".repeat(80));
-        console.error(`Error Type: ${diagnostic.errorType}`);
-        console.error(`Message: ${diagnostic.errorMessage}`);
-        console.error(`Timestamp: ${diagnostic.timestamp}`);
-        console.error("\nPOSSIBLE CAUSES:");
-        diagnostic.possibleCauses.forEach((cause, i) => {
-          console.error(`  ${i+1}. ${cause}`);
-        });
-        console.error("\nRECOMMENDED FIXES:");
-        diagnostic.suggestedFixes.forEach((fix, i) => {
-          console.error(`  ${fix}`);
-        });
-        console.error("=".repeat(80));
-
-        // Also send to Android interface if available
-        if (window.AndroidInterface && window.AndroidInterface.logDiagnostic) {
-          window.AndroidInterface.logDiagnostic(
-            `Microphone Error: ${diagnostic.errorType}\nMessage: ${diagnostic.errorMessage}`,
-            "MIC_ERROR"
-          );
+        // Apply Highlight.js coloring robustly inside the renderer
+        let highlightedCode = code;
+        if (lang && lang !== 'plaintext' && hljs.getLanguage(lang)) {
+            try { highlightedCode = hljs.highlight(code, { language: lang }).value; } catch (e) {}
+        } else {
+            try { highlightedCode = hljs.highlightAuto(code).value; } catch (e) {}
         }
+
+        return `
+        <div class="code-block-container">
+            <div class="code-header">
+                <span>${lang}</span>
+                <div class="code-actions">
+                    ${previewBtn}
+                    <div class="action-icon" onclick="copyCode(decodeURIComponent('${safeCode}'))"><span class="material-symbols-outlined" style="font-size:16px;">content_copy</span> Copy</div>
+                </div>
+            </div>
+            <pre><code class="hljs ${lang}">${highlightedCode}</code></pre>
+        </div>`;
+    };
+    marked.setOptions({ renderer: renderer });
+
+    /* --- ENHANCEMENT: GLOBAL ACTION FUNCTIONS --- */
+    window.copyCode = function(code) {
+        if (window.AndroidInterface && window.AndroidInterface.copyToClipboard) {
+            window.AndroidInterface.copyToClipboard(code);
+        } else {
+            navigator.clipboard.writeText(code);
+            alert("Copied to clipboard");
+        }
+    };
+
+    window.showPreview = function(code) {
+        const modal = document.getElementById('previewModal');
+        const iframe = document.getElementById('previewIframe');
+        iframe.srcdoc = code;
+        modal.style.display = 'flex';
+    };
+
+    window.closePreview = function() {
+        const modal = document.getElementById('previewModal');
+        const iframe = document.getElementById('previewIframe');
+        iframe.srcdoc = '';
+        modal.style.display = 'none';
+    };
+
+    /* --- ENHANCEMENT: STAGED FILES STORAGE --- */
+    let stagedFiles = []; 
+    let customInstruction = localStorage.getItem('puter_custom_ins') || "";
+    let globalSelectedModel = ""; 
+    let globalModelObject = null; // Store full object for metadata checks
+    let lastAuthStatus = null; 
+    let isLiveMode = false; 
+
+    /* --- REQUIREMENT #1: FIXED VOICE LOGIC --- */
+    let isVoiceResponseActive = false;
+
+    /* --- FIX #2: PERSISTENT USAGE INITIALIZATION --- */
+    let sessionTotalTokens = parseInt(localStorage.getItem('puter_persistent_tokens') || "0");
+    let sessionTotalCredits = parseFloat(localStorage.getItem('puter_persistent_credits') || "0.0");
+
+    /* --- REQUIREMENT #3: MULTI-SESSION STATE --- */
+    let currentSessionId = localStorage.getItem('puter_current_session_id') || Date.now().toString();
+    let chatHistory = JSON.parse(localStorage.getItem('puter_chat_history_' + currentSessionId) || "[]");
+    let activeMessageContext = null; 
+
+    /* --- NEW FEATURE: DUAL-PROVIDER MULTIPLEX ENGINE --- */
+    let activeProvider = "Puter";
+
+    /* --- NEW FEATURE: REFERENCE WEBSOCKET LIVE AUDIO STATE VARIABLES --- */
+    let liveWs = null;
+    let liveAudioContext = null;
+    let liveAudioProcessor = null;
+    let liveMicStream = null;
+    let livePlayCtx = null;
+    let nextPlayTime = 0;
+    let activeSources = [];
+    let pendingLiveQuery = null;
+    let isLivePlaybackActive = false;
+
+    /* FIX #1: AUTO-EXPANDING TEXTAREA LOGIC */
+    function handleInput() {
+      const input = document.getElementById('puterChatInput');
+      const container = document.getElementById('puterSearchBarContainer');
+
+      // Auto-Expansion Logic
+      input.style.height = '44px'; // Reset to base height to calculate
+      const newHeight = Math.min(input.scrollHeight, 180);
+      input.style.height = newHeight + 'px';
+
+      // Overflow toggle
+      if (input.scrollHeight > 180) {
+          input.style.overflowY = 'auto';
+      } else {
+          input.style.overflowY = 'hidden';
+      }
+
+      // Visibility logic to check for text OR staged files
+      if (input.value.trim().length > 0 || stagedFiles.length > 0) {
+        container.classList.add('has-text');
+      } else {
+        container.classList.remove('has-text');
+      }
+    }
+
+    // Advanced document click listener to close menus when clicking outside
+    document.onclick = (e) => {
+      // Handle 3-dot menu
+      if (!e.target.closest('#puterMenuButton') && !e.target.closest('#puterDropdownMenu')) {
+          document.getElementById('puterDropdownMenu').classList.remove('show');
+      }
+      // Handle custom accordion menu
+      if (!e.target.closest('.custom-select-container')) {
+          document.getElementById('accordionMenu').classList.remove('show');
+      }
+      // Close Context Menu if click was outside the menu (Specification 4)
+      if (!e.target.closest('#customContextMenu')) {
+          document.getElementById('customContextMenu').style.display = 'none';
       }
     };
 
-    /* ============================================================================
-     * ENHANCED TTS STATE MANAGEMENT
-     * ============================================================================ */
-    
-    const TTSStateManager = {
-      // Queue to manage TTS responses
-      responseQueue: [],
-      isCurrentlyPlaying: false,
-      currentResponseId: null,
+    document.getElementById('puterMenuButton').onclick = (e) => {
+      e.stopPropagation();
+      try { renderDynamicSessionList(); } catch (err) { console.error("Error rendering sessions list: " + err); }
+      try { renderDynamicScrapedList(); } catch (err) { console.error("Error rendering scraped list: " + err); }
+      try { loadNostrIdentityInUI(); } catch (err) { console.error("Error loading Nostr identity: " + err); }
+      try { syncGeminiUIState(); } catch (err) { console.error("Error syncing Gemini settings state: " + err); }
+      document.getElementById('puterDropdownMenu').classList.toggle('show');
+    };
 
-      // Enqueue a TTS response
-      enqueueResponse: function(responseId, text) {
-        this.responseQueue.push({
-          id: responseId,
-          text: text,
-          timestamp: Date.now()
-        });
-        
-        console.log(`[TTS] Queued response ${responseId}. Queue length: ${this.responseQueue.length}`);
-        
-        // Process queue if not already playing
-        if (!this.isCurrentlyPlaying) {
-          this.processQueue();
+    function openModal(id) { 
+        if(id === 'historyModal') renderHistory();
+        document.getElementById(id).style.display = 'flex'; 
+    }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function toggleAccordionMenu() {
+        document.getElementById('accordionMenu').classList.toggle('show');
+    }
+
+    function toggleAcc(elementId) {
+        const el = document.getElementById(elementId);
+        el.classList.toggle('open');
+    }
+
+    /* ENHANCEMENT: UPDATED SELECT MODEL TO DETECT IMAGE GENERATION & AUDIO TYPE */
+    function selectModel(id, name, modelObj = null) {
+        globalSelectedModel = id;
+        globalModelObject = modelObj;
+        console.log("Model Selected: " + id);
+
+        // Update the UI trigger text to show what was selected
+        document.getElementById('selectedModelText').textContent = name || id;
+
+        // --- IMAGE MODEL UI LOGIC ---
+        const ratioContainer = document.getElementById("aspectRatioContainer");
+        if (modelObj && modelObj.categories && modelObj.categories.includes("image_generation")) {
+            ratioContainer.style.display = "block";
+        } else {
+            ratioContainer.style.display = "none";
         }
-      },
 
-      // Process queue and speak next response
-      processQueue: function() {
-        if (this.responseQueue.length === 0) {
-          this.isCurrentlyPlaying = false;
-          this.currentResponseId = null;
-          console.log("[TTS] Queue empty. Playback stopped.");
+        // =========================================================================
+        // NEW: ACTIVE GEMINI CAPABILITY & VERIFICATION GATES
+        // =========================================================================
+        if (activeProvider === "Gemini") {
+            const streamToggleEl = document.getElementById("geminiStreamToggle");
+            const groundingSelectEl = document.getElementById("geminiGroundingSelect");
+
+            // 1. Streaming support gate - disables streaming on binary text-to-speech models
+            const supportsStreaming = modelObj && modelObj.categories && !modelObj.id.includes("tts") && !modelObj.id.includes("live-preview") && !modelObj.id.includes("native-audio") && !modelObj.id.includes("exp");
+            if (supportsStreaming) {
+                streamToggleEl.disabled = false;
+                streamToggleEl.parentElement.style.opacity = "1";
+            } else {
+                streamToggleEl.checked = false;
+                if (window.AndroidInterface && window.AndroidInterface.setGeminiStreaming) {
+                    window.AndroidInterface.setGeminiStreaming(false);
+                }
+                streamToggleEl.disabled = true;
+                streamToggleEl.parentElement.style.opacity = "0.5";
+            }
+
+            // 2. Grounding tools support gate (Flash/Pro/Gemma-4 models)
+            const supportsGrounding = modelObj && modelObj.categories && 
+                (modelObj.id.includes("flash") || modelObj.id.includes("gemma-4") || modelObj.id.includes("pro"));
+            
+            // WebSocket live models do not support maps grounding. Toggle validation gate.
+            const isLiveModel = modelObj && modelObj.categories && modelObj.categories.includes("live");
+            const supportsMaps = supportsGrounding && !modelObj.id.includes("gemma") && !isLiveModel;
+
+            if (supportsGrounding) {
+                groundingSelectEl.disabled = false;
+                groundingSelectEl.style.opacity = "1";
+                const mapsOption = groundingSelectEl.querySelector('option[value="maps"]');
+                if (mapsOption) {
+                    if (!supportsMaps) {
+                        mapsOption.disabled = true;
+                        if (groundingSelectEl.value === "maps") {
+                            groundingSelectEl.value = "none";
+                            if (window.AndroidInterface && window.AndroidInterface.setGeminiGrounding) {
+                                window.AndroidInterface.setGeminiGrounding("none");
+                            }
+                        }
+                    } else {
+                        mapsOption.disabled = false;
+                    }
+                }
+            } else {
+                groundingSelectEl.value = "none";
+                if (window.AndroidInterface && window.AndroidInterface.setGeminiGrounding) {
+                    window.AndroidInterface.setGeminiGrounding("none");
+                }
+                groundingSelectEl.disabled = true;
+                groundingSelectEl.style.opacity = "0.5";
+            }
+        }
+
+        // Close the menu
+        document.getElementById('accordionMenu').classList.remove('show');
+    }
+
+    /**
+     * Requirement #7 - Normalizes Puter API response into 
+     * Provider > Model structure used by current UI.
+     */
+    function normalizeModels(rawModels) {
+        if (!rawModels) return {};
+        // If already grouped (Local JSON format)
+        if (!Array.isArray(rawModels)) return rawModels;
+
+        const grouped = {};
+        rawModels.filter(m => m && m.id).forEach(model => {
+            const provider = model.provider || model.vendor || "other";
+            if (!grouped[provider]) grouped[provider] = [];
+            grouped[provider].push(model);
+        });
+        return grouped;
+    }
+
+    /**
+     * Requirement #7 - Unified Rendering Logic
+     * Preserves: Parents, Categories, and Metadata.
+     */
+    function renderModelAccordion(providers) {
+        let allModels = [];
+        let categoriesSet = new Set();
+
+        for (const providerKey in providers) {
+            const providerModels = providers[providerKey].map(model => {
+                if(model.categories) {
+                    model.categories.forEach(cat => categoriesSet.add(cat));
+                }
+                return { ...model, provider: providerKey };
+            });
+            allModels = allModels.concat(providerModels);
+        }
+
+        allModels.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+
+        let html = '';
+
+        // SLIDER 1: ALL MODELS
+        html += `<div class="acc-section">
+                    <div class="acc-header" onclick="toggleAcc('acc-all')">All Models <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span></div>
+                    <div id="acc-all" class="acc-content">`;
+        allModels.forEach(m => {
+            const safeName = (m.name || m.id).replace(/'/g, "\\'");
+            const cats = m.categories ? ` (${m.categories.join(', ')})` : '';
+            // Safe JSON stringify for click handler
+            const modelStr = JSON.stringify(m).replace(/'/g, "&apos;");
+            html += `<div class="model-item" onclick='selectModel("${m.id}", "${safeName}", ${modelStr})'>${m.name || m.id}${cats}</div>`;
+        });
+        html += `   </div></div>`;
+
+        // SLIDER 2: BY PARENT
+        html += `<div class="acc-section">
+                    <div class="acc-header" onclick="toggleAcc('acc-parents')">By Parent <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span></div>
+                    <div id="acc-parents" class="acc-content">`;
+        for(const provider in providers) {
+            let pId = 'prov-' + provider.replace(/[^a-zA-Z0-9]/g, '-');
+            html += `<div class="acc-sub-header" onclick="toggleAcc('${pId}')">${provider.toUpperCase()} <span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></div>
+                     <div id="${pId}" class="acc-sub-content">`;
+            providers[provider].forEach(m => {
+                const safeName = (m.name || m.id).replace(/'/g, "\\'");
+                const modelStr = JSON.stringify(m).replace(/'/g, "&apos;");
+                html += `<div class="model-item" onclick='selectModel("${m.id}", "${safeName}", ${modelStr})'>${m.name || m.id}</div>`;
+            });
+            html += `</div>`; // FIXED: Added missing closing div to prevent accordion nested rendering bug
+            let backgroundWs = null;
+        }
+        html += `   </div></div>`;
+
+        // SLIDER 3: BY CATEGORY
+        html += `<div class="acc-section">
+                    <div class="acc-header" onclick="toggleAcc('acc-cat')">By Category <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span></div>
+                    <div id="acc-cat" class="acc-content">`;
+        categoriesSet.forEach(cat => {
+            let cId = 'cat-' + cat.replace(/[^a-zA-Z0-9]/g, '-');
+            html += `<div class="acc-sub-header" onclick="toggleAcc('${cId}')">${cat.replace(/_/g, ' ').toUpperCase()} <span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></div>
+                     <div id="${cId}" class="acc-sub-content">`;
+            allModels.filter(m => m.categories && m.categories.includes(cat)).forEach(m => {
+                const safeName = (m.name || m.id).replace(/'/g, "\\'");
+                const modelStr = JSON.stringify(m).replace(/'/g, "&apos;");
+                html += `<div class="model-item" onclick='selectModel("${m.id}", "${safeName}", ${modelStr})'>${m.name || m.id}</div>`;
+            });
+            html += `</div>`;
+        });
+        html += `   </div></div>`;
+
+        document.getElementById('accordionMenu').innerHTML = html;
+        if(allModels.length > 0 && !globalSelectedModel) {
+            selectModel(allModels[0].id, allModels[0].name || allModels[0].id, allModels[0]);
+        }
+    }
+
+    /**
+     * Modified loadModels to support local/live switching.
+     */
+    async function loadModels() {
+        try {
+            if (!window.AndroidInterface) return;
+
+            // Update expandable configurations in three-dot settings dynamically on render
+            syncGeminiUIState();
+
+            if (activeProvider === "Gemini") {
+                const geminiJsonString = window.AndroidInterface.getLocalJson("gemini_models.json");
+                if (!geminiJsonString || geminiJsonString === "{}") throw new Error("Local Gemini models missing");
+                const localGeminiData = normalizeModels(JSON.parse(geminiJsonString));
+                renderModelAccordion(localGeminiData);
+            } else {
+                // Check preference via bridge
+                isLiveMode = window.AndroidInterface.getModelSource();
+                document.getElementById('modelSourceToggle').textContent = isLiveMode ? "Use Local Models" : "Enable Live Models";
+
+                if (isLiveMode) {
+                    // Try cache first
+                    const cached = localStorage.getItem("puter_live_models");
+                    if (cached) renderModelAccordion(JSON.parse(cached));
+
+                    // Fetch fresh if authenticated
+                    if (typeof puter !== 'undefined' && puter.auth.isSignedIn()) {
+                        loadLiveModels();
+                    } else {
+                        document.getElementById('selectedModelText').textContent = "Sign in for Live Models";
+                    }
+                } else {
+                    const jsonString = window.AndroidInterface.getLocalJson("models.json");
+                    if (!jsonString || jsonString === "{}") throw new Error("Local models missing");
+                    // SAFETY FIX: Pass through normalization to ensure consistent rendering structure
+                    const localData = normalizeModels(JSON.parse(jsonString));
+                    renderModelAccordion(localData);
+                }
+            }
+        } catch(e) {
+            console.error("Model load failed:", e);
+            document.getElementById('selectedModelText').textContent = "Error loading models";
+        }
+    }
+
+    /**
+     * Requirement #7 - Live Fetch Implementation
+     * FIXED: Normalizes live API response into same ARRAY structure as local JSON.
+     */
+    async function loadLiveModels() {
+        try {
+            document.getElementById('selectedModelText').textContent = "Syncing live models...";
+
+            const response = await (
+                puter.ai.listModels
+                    ? puter.ai.listModels()
+                    : puter.ai.models()
+            );
+
+            console.log("LIVE RESPONSE:", response);
+
+            let raw = [];
+
+            if (Array.isArray(response)) {
+                raw = response;
+            }
+            else if (Array.isArray(response.models)) {
+                raw = response.models;
+            }
+            else {
+                // If keyed by provider/vendor, extract and flatten
+                raw = Object.values(response).flat();
+            }
+
+            const grouped = normalizeModels(raw);
+            localStorage.setItem("puter_live_models", JSON.stringify(grouped));
+            renderModelAccordion(grouped);
+        } catch (err) {
+            console.error("Live Fetch failed:", err);
+        }
+    }
+
+    function toggleModelSource() {
+        isLiveMode = !isLiveMode;
+        window.AndroidInterface.setModelSource(isLiveMode);
+        loadModels();
+        document.getElementById('puterDropdownMenu').classList.remove('show');
+    }
+
+    /**
+     * FIX 2 - Normalizes AI Response strings vs arrays (Claude Fix)
+     */
+    function normalizeAIResponse(content) {
+        if (!content) return "";
+        // Already text
+        if (typeof content === "string") return content;
+
+        // Claude array blocks
+        if (Array.isArray(content)) {
+            return content.map(item => {
+                if (typeof item === "string") return item;
+                if (item.text) return item.text;
+                return JSON.stringify(item);
+            }).join("\n");
+        }
+
+        // Object fallback
+        if (typeof content === "object") {
+            if (content.text) return content.text;
+            return JSON.stringify(content);
+        }
+
+        return String(content);
+    }
+
+    /* --- REFINED VOICE MODE TRIGGERS --- */
+    function triggerMic() {
+        if(window.AndroidInterface) {
+            isVoiceResponseActive = true;
+            window.AndroidInterface.setVoiceMode(true);
+            window.AndroidInterface.startListening();
+        }
+    }
+
+    function triggerVoiceAgent() {
+        if(window.AndroidInterface) {
+            isVoiceResponseActive = true;
+            window.AndroidInterface.setVoiceMode(true);
+            window.AndroidInterface.startVoiceAgent();
+        }
+    }
+
+    /* --- FIX #2: PERSISTENT USAGE TELEMETRY UPDATER --- */
+    function updateUsageUI(usage) {
+        if(!usage) return;
+        const totalTokens = usage.total_tokens || (usage.prompt_tokens + usage.completion_tokens) || 0;
+        const totalCredits = usage.usd_cents ? (usage.usd_cents / 100) : 0;
+
+        // Accumulate onto persistent totals
+        sessionTotalTokens += totalTokens;
+        sessionTotalCredits += totalCredits;
+
+        // Write to storage immediately
+        localStorage.setItem('puter_persistent_tokens', sessionTotalTokens.toString());
+        localStorage.setItem('puter_persistent_credits', sessionTotalCredits.toFixed(6));
+
+        // Update UI displays
+        document.getElementById('lastTokenVal').textContent = `Last: ${totalTokens} tokens`;
+        document.getElementById('lastCreditVal').textContent = `Cost: $${totalCredits.toFixed(4)}`;
+
+        document.getElementById('totalTokenVal').textContent = `Global Total: ${sessionTotalTokens} tokens`;
+        document.getElementById('totalCreditVal').textContent = `Global Cost: $${sessionTotalCredits.toFixed(4)}`;
+
+        console.log(`PERSISTED USAGE: Total Tokens=${sessionTotalTokens}`);
+    }
+
+    /* --- STEP 4: OVERHAUL IMAGE RENDERING --- */
+    function renderImage(src){
+       const log = document.getElementById('puterChatLog');
+       const msgId = "img-" + Date.now();
+
+       const div = document.createElement("div");
+       div.className = "message bot-message";
+       div.id = msgId;
+
+       div.innerHTML = `
+          <div class="message-content">
+              <div class="msg-header">
+                  <b>Bot:</b>
+                  <span class="material-symbols-outlined download-icon-tiny" onclick="window.AndroidInterface.saveImageToGallery('${src}')">download</span>
+              </div>
+              <img src="${src}" class="ai-generated-image">
+          </div>
+       `;
+       log.appendChild(div);
+
+       // Persist to history containing src Base64
+       chatHistory.push({sender: "Bot", text: "[Image Generated]", type: "image", src: src, id: msgId});
+       localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+       window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    // 2. Main Chat Logic with ECG LOADER & MULTI-FILE PAYLOAD
+    async function sendMessage(fromVoice = false) {
+      console.log("Send Clicked. Voice Active: " + fromVoice);
+
+      // Update global state immediately based on trigger source
+      isVoiceResponseActive = fromVoice;
+      if(window.AndroidInterface) {
+          window.AndroidInterface.setVoiceMode(fromVoice);
+      }
+
+      if (typeof puter === 'undefined' || !puter.auth || !puter.auth.isSignedIn()) {
+          console.warn("Auth Check initial fail. Waiting for cookie/session settlement...");
+          await new Promise(r => setTimeout(r, 600));
+      }
+
+      if (typeof puter === 'undefined' || !puter.auth || !puter.auth.isSignedIn()) {
+        console.error("Auth Check Final Failed. Real session not detected.");
+        alert("Please sign in to start chatting with Puter.");
+        handleAuthAction(true); 
+        return;
+      }
+
+      const input = document.getElementById('puterChatInput');
+      let text = input.value.trim();
+      const model = globalSelectedModel; 
+
+      // REQUIREMENT: Must check both text and stagedFiles
+      if(!text && stagedFiles.length === 0) return;
+
+      // Master Barge-In Call: Stop standard speakers and cancel active live queue streaming on any sending trigger
+      if (window.activeCustomAudioSource) {
+          try { window.activeCustomAudioSource.pause(); window.activeCustomAudioSource.currentTime = 0; } catch(e) {}
+      }
+      clearPlaybackQueueLive();
+      if (window.AndroidInterface && window.AndroidInterface.stopSpeaking) {
+          window.AndroidInterface.stopSpeaking();
+      }
+
+      // =========================================================================
+      // DUAL-MODE BRANCHING INTERCEPTOR (Instruction One, Two, Five)
+      // =========================================================================
+      const isAutoModeActive = window.AndroidInterface && window.AndroidInterface.getAutoMode();
+      if (isAutoModeActive) {
+          executeAutoModeQuery(fromVoice, text);
           return;
-        }
-
-        const nextResponse = this.responseQueue.shift();
-        this.currentResponseId = nextResponse.id;
-        this.isCurrentlyPlaying = true;
-
-        console.log(`[TTS] Now playing response ${nextResponse.id}`);
-        
-        if (window.AndroidInterface && window.AndroidInterface.speakText) {
-          window.AndroidInterface.speakText(nextResponse.text);
-        }
-      },
-
-      // Call when TTS playback completes
-      onTTSComplete: function() {
-        console.log(`[TTS] Playback complete for response ${this.currentResponseId}`);
-        this.processQueue(); // Process next in queue
-      },
-
-      // Clear entire queue
-      clearQueue: function() {
-        this.responseQueue = [];
-        this.isCurrentlyPlaying = false;
-        this.currentResponseId = null;
-        console.log("[TTS] Queue cleared");
-      },
-
-      // Get queue status
-      getStatus: function() {
-        return {
-          queueLength: this.responseQueue.length,
-          isPlaying: this.isCurrentlyPlaying,
-          currentResponseId: this.currentResponseId,
-          queue: this.responseQueue
-        };
       }
+
+      const messageFiles = [...stagedFiles];
+
+      // RENDER USER BUBBLE WITH THUMBNAILS (No extra bracket text added to display)
+      appendChat("User", text, false, messageFiles);
+
+      input.value = "";
+      handleInput(); 
+
+      // =========================================================================
+      // NEW: DUAL-PROVIDER ROUTING MULTIPLEX BRANCH (Puter vs Gemini)
+      // =========================================================================
+      if (activeProvider === "Gemini") {
+          executeNativeGeminiSend(text, messageFiles);
+          return;
+      }
+
+      // --- ENHANCEMENT: IMAGE MODEL LOGIC ---
+      const isImageModel = globalModelObject?.categories?.includes("image_generation");
+
+      if(isImageModel) {
+          const ratio = document.getElementById("aspectRatioSelect").value;
+          text = text + ". Aspect ratio: " + ratio + " cinematic landscape.";
+          document.getElementById("loaderText").textContent = "AI is generating image...";
+      } else {
+          document.getElementById("loaderText").textContent = "AI is answering...";
+      }
+
+      // REQUIREMENT: Multi-file block construction for AI payload
+      let contentBlocks = [];
+      if (text) {
+          contentBlocks.push({type: "text", text: text});
+      }
+
+      messageFiles.forEach(file => {
+          if (file.type.startsWith('image/')) {
+              // Vision content block
+              contentBlocks.push({type: "image_url", image_url: {url: file.data}});
+          } else {
+              // Text-based content block for docs/code
+              contentBlocks.push({type: "text", text: `[Attached File: ${file.name}]\n${file.data}`});
+          }
+      });
+
+      // =========================================================================
+      // OPEN-TEXT LANGUAGE MEMORY SYSTEM SYSTEM DIRECTIVE INJECTION (Specification 1)
+      // =========================================================================
+      const targetLanguage = localStorage.getItem("puter_target_language") || "";
+      const nativeLanguage = getNativeLanguageName(targetLanguage);
+      let activeSystemMessage = customInstruction;
+      if (targetLanguage) {
+          // Specification 1: Strong language enforcement prompts to force Gemini replies natively (Malayalam/Tamil)
+          const systemDirective = `IMPORTANT:\nALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n\nNEVER use English.\n\nEven if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}. Do not transliterate. Write strictly in the native script characters of the language.`;
+          activeSystemMessage = activeSystemMessage ? `${activeSystemMessage}\n\n${systemDirective}` : systemDirective;
+      }
+
+      const loader = document.getElementById('ecgLoader');
+      loader.style.display = 'flex';
+      window.scrollTo(0, document.body.scrollHeight);
+
+      try {
+        console.log("Requesting AI Response for model: " + model);
+
+        // --- BRANCHED LOGIC: IMAGE VS TEXT ---
+        if(isImageModel) {
+            const aspectRatio = document.getElementById("aspectRatioSelect").value;
+
+            // --- STEP 3: API PARAMETER RATIO MAPPING LOOKUP TABLE ---
+            const ratioMap = {
+                "1:1": { w: 1, h: 1 },
+                "16:9": { w: 16, h: 9 },
+                "9:16": { w: 9, h: 16 },
+                "4:3": { w: 4, h: 3 },
+                "3:4": { w: 3, h: 4 },
+                "21:9": { w: 21, h: 9 }
+            };
+            const mappedRatioObject = ratioMap[aspectRatio] || { w: 1, h: 1 };
+
+            // Compatibility construction for image generations
+            let imagePayload;
+            if (contentBlocks.length === 1 && contentBlocks[0].type === "text") {
+                imagePayload = text;
+            } else {
+                imagePayload = [{
+                    role: 'user',
+                    content: contentBlocks
+                }];
+            }
+
+            // COMPATIBILITY OPTIMIZATION: Ensure the parameters support legacy and modern multimodal chat image models
+            const response = await puter.ai.chat(imagePayload, {
+                model: model,
+                system_message: activeSystemMessage,
+                stream: false,
+                aspect_ratio: aspectRatio,
+                ratio: mappedRatioObject,
+                image_config: {
+                    aspect_ratio: aspectRatio
+                }
+            });
+
+            loader.style.display = 'none';
+            console.log("Image generation completed.");
+
+            // IMPROVED EXTRACTION FOR ALL MODELS (INCLUDING JAMBA 1.7)
+            let imgSrc = null;
+            if(response.image_url) imgSrc = response.image_url;
+            else if(response.images && response.images[0]) imgSrc = response.images[0].url || response.images[0];
+            else if(response.message?.images?.[0]?.image_url?.url) imgSrc = response.message.images[0].image_url.url;
+            else if(response.b64_json) imgSrc = "data:image/png;base64," + response.b64_json;
+            else if(Array.isArray(response.message?.content)) {
+                const imgBlock = response.message.content.find(c => c.type === "image_url");
+                if(imgBlock) imgSrc = imgBlock.image_url.url;
+            }
+
+            if(imgSrc) renderImage(imgSrc);
+            else appendChat("Bot", "Error: Recognized image data not found in response.");
+
+        } else {
+            // Conversational payload built using first-class system roles to force strict language execution
+            const messagesArray = [];
+            if (activeSystemMessage) {
+                messagesArray.push({
+                    role: 'system',
+                    content: activeSystemMessage
+                });
+            }
+
+            // Injects local target scripts at context tail end to prevent English fallback
+            let finalUserContent = text;
+            if (contentBlocks.length > 0) {
+                if (targetLanguage) {
+                    const scriptName = nativeLanguage || targetLanguage;
+                    let textBlock = contentBlocks.find(b => b.type === "text");
+                    if (textBlock) {
+                        textBlock.text += `\n\n[System Rule: Respond strictly in ${scriptName} script]`;
+                    } else {
+                        contentBlocks.push({ type: "text", text: `[System Rule: Respond strictly in ${scriptName} script]` });
+                    }
+                }
+                messagesArray.push({
+                    role: 'user',
+                    content: contentBlocks
+                });
+            } else {
+                if (targetLanguage) {
+                    const scriptName = nativeLanguage || targetLanguage;
+                    finalUserContent += `\n\n[System Rule: Respond strictly in ${scriptName} script]`;
+                }
+                messagesArray.push({
+                    role: 'user',
+                    content: finalUserContent
+                });
+            }
+
+            // --- ENHANCEMENT: LIVELY STREAMING GENERATION ---
+            const streamResp = await puter.ai.chat(messagesArray, {model: model, stream: true});
+
+            let fullBotText = "";
+            const msgId = "msg-" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+            const log = document.getElementById('puterChatLog');
+            const div = document.createElement('div');
+            div.className = "message bot-message";
+            div.id = msgId;
+
+            // Apply long press logic
+            let pressTimer;
+            let startX, startY;
+            div.onpointerdown = (e) => { 
+                if (pressTimer) clearTimeout(pressTimer);
+                startX = e.clientX;
+                startY = e.clientY;
+                pressTimer = window.setTimeout(() => { showContextMenu(e, fullBotText, msgId); }, 700); 
+            };
+            div.onpointermove = (e) => {
+                if (pressTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 8) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+            };
+            div.onpointerup = () => {
+                if (pressTimer) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+            };
+            div.onpointercancel = () => {
+                if (pressTimer) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+            };
+            div.oncontextmenu = (e) => e.preventDefault();
+
+            div.innerHTML = `<div class="message-content"><b>Bot:</b><br><span id="stream-content-${msgId}"></span></div>`;
+            log.appendChild(div);
+
+            const targetSpan = document.getElementById(`stream-content-${msgId}`);
+
+            for await (const chunk of streamResp) {
+                if(chunk.usage) { updateUsageUI(chunk.usage); continue; }
+                const chunkText = chunk?.text || chunk?.message?.content || "";
+                if (chunkText) {
+                    fullBotText += chunkText;
+                    targetSpan.innerHTML = marked.parse(fullBotText);
+                    document.querySelectorAll(`#stream-content-${msgId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+            }
+
+            loader.style.display = 'none';
+            chatHistory.push({sender: "Bot", text: fullBotText, id: msgId, files: []});
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+            if(isVoiceResponseActive && window.AndroidInterface) {
+                window.AndroidInterface.speak(fullBotText);
+            }
+        }
+
+        clearFiles(); 
+      } catch(e) { 
+        loader.style.display = 'none';
+        console.error("API Call Failed: " + e.message);
+        appendChat("System", "Error: " + e.message); 
+      }
+    }
+
+    // 3. Append Chat with LONG PRESS & HISTORY Support
+    // Preserves default behavior for text messages
+    function appendChat(sender, text, isLoad = false, files = []) {
+      const log = document.getElementById('puterChatLog');
+      const msgId = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+
+      const div = document.createElement('div');
+      div.className = "message " + (sender === "User" ? "user-message" : "bot-message");
+      div.id = "msg-" + msgId;
+
+      // ENHANCEMENT: LONG PRESS HANDLER WITH TOUCH DRIFT CANCELLATION
+      let pressTimer;
+      let startX, startY;
+      div.onpointerdown = (e) => {
+          if (pressTimer) clearTimeout(pressTimer);
+          startX = e.clientX;
+          startY = e.clientY;
+          pressTimer = window.setTimeout(() => {
+              showContextMenu(e, text, "msg-" + msgId);
+          }, 700); // 700ms long press
+      };
+      div.onpointermove = (e) => {
+          if (pressTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 8) {
+              clearTimeout(pressTimer);
+              pressTimer = null;
+          }
+      };
+      div.onpointerup = () => {
+          if (pressTimer) {
+              clearTimeout(pressTimer);
+              pressTimer = null;
+          }
+      };
+      div.onpointercancel = () => {
+          if (pressTimer) {
+              clearTimeout(pressTimer);
+              pressTimer = null;
+          }
+      };
+      div.oncontextmenu = (e) => e.preventDefault(); // Disable system context menu
+
+      // Logic to build thumbnails HTML for inside the chat bubble
+      let filesHtml = "";
+      if(files && files.length > 0) {
+          filesHtml = `<div class="chat-thumbnail-container">`;
+          files.forEach(f => {
+              if(f.type.startsWith('image/')) {
+                  f.data = f.data || "";
+                  filesHtml += `<img src="${f.data}" class="chat-inline-thumb">`;
+              } else {
+                  const ext = f.type.split('/')[1] || "FILE";
+                  filesHtml += `<div class="chat-inline-file">${ext.toUpperCase().substring(0,3)}</div>`;
+              }
+          });
+          filesHtml += `</div>`;
+      }
+
+      // Safe String conversion for marked.parse
+      div.innerHTML = `<div class="message-content"><b>${sender}:</b><br>${marked.parse(String(text || ""))}${filesHtml}</div>`;
+      log.appendChild(div);
+
+      // Preserves to history if it's a real chat turn
+      if(!isLoad && (sender === "User" || sender === "Bot")) {
+          chatHistory.push({sender, text, id: "msg-" + msgId, files: files});
+          /* --- REQUIREMENT #3: PERSIST PER SESSION ID --- */
+          localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+      }
+
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    // --- ENHANCEMENT: CONTEXT MENU ACTIONS ---
+    function showContextMenu(e, text, id) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        activeMessageContext = { text, id };
+        const menu = document.getElementById('customContextMenu');
+
+        // Specification 2: Dynamic evaluation of SharedPreferences Mode Toggle
+        const toggleLi = document.getElementById('menuToggleModeOption');
+        if (toggleLi) {
+            let isAuto = false;
+            if (window.AndroidInterface && window.AndroidInterface.getAutoMode) {
+                isAuto = window.AndroidInterface.getAutoMode();
+            }
+
+            if (isAuto) {
+                toggleLi.innerHTML = `<span class="material-symbols-outlined">bolt</span> Auto Mode`;
+            } else {
+                toggleLi.innerHTML = `<span class="material-symbols-outlined">pan_tool</span> Normal Mode`;
+            }
+        }
+
+        // Gemini State Switcher Option (Specification 2)
+        const toggleProviderLi = document.getElementById('menuToggleProviderOption');
+        if (toggleProviderLi) {
+            if (activeProvider === "Gemini") {
+                toggleProviderLi.innerHTML = `<span class="material-symbols-outlined">cloud</span> Puter Mode`;
+            } else {
+                toggleProviderLi.innerHTML = `<span class="material-symbols-outlined">robot_2</span> Gemini Mode`;
+            }
+        }
+
+        menu.style.display = 'block';
+
+        // Position near finger
+        let x = e.clientX;
+        let y = e.clientY;
+
+        // Overflow check
+        if (x + 200 > window.innerWidth) x -= 200;
+        if (y + 240 > window.innerHeight) y -= 240;
+        if (x < 0) x = 10;
+        if (y < 0) y = 10;
+
+        menu.style.left = x + "px";
+        menu.style.top = y + "px";
+    }
+
+    // Specification 3: Handle Contextual Actions
+    function handleMenuAction(action) {
+        if(!activeMessageContext && action !== 'end_session' && action !== 'refresh_relay' && action !== 'toggle_mode' && action !== 'toggle_provider') return;
+        const { text, id } = activeMessageContext || {};
+
+        if(action === 'copy') {
+            if(window.AndroidInterface && window.AndroidInterface.copyToClipboard) {
+                window.AndroidInterface.copyToClipboard(text);
+            } else {
+                navigator.clipboard.writeText(text);
+                alert("Copied to clipboard");
+            }
+        } else if(action === 'read') {
+            if(window.AndroidInterface) window.AndroidInterface.speak(text);
+        } else if(action === 'delete') {
+            // Stop AI speech if deleted
+            if(window.AndroidInterface) window.AndroidInterface.stopSpeaking();
+
+            // Remove from UI
+            const el = document.getElementById(id);
+            if(el) el.remove();
+            // Remove from History
+            chatHistory = chatHistory.filter(m => m.id !== id);
+            // Specification 2: Real-time Message Deletion Synchronization
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+        } else if(action === 'refresh_relay') {
+            // Reads Nostr configurations and force-propagates connections natively
+            saveNostrSettings();
+        } else if(action === 'toggle_mode') {
+            let currentMode = false;
+            if (window.AndroidInterface && window.AndroidInterface.getAutoMode) {
+                currentMode = window.AndroidInterface.getAutoMode();
+            }
+            const targetMode = !currentMode;
+            if (window.AndroidInterface && window.AndroidInterface.setAutoMode) {
+                window.AndroidInterface.setAutoMode(targetMode);
+            }
+            if (window.AndroidInterface && window.AndroidInterface.showToast) {
+                window.AndroidInterface.showToast(targetMode ? "Auto Mode Enabled" : "Normal Mode Enabled");
+            } else {
+                alert(targetMode ? "Auto Mode Enabled" : "Normal Mode Enabled");
+            }
+        } else if(action === 'toggle_provider') {
+            activeProvider = (activeProvider === "Puter") ? "Gemini" : "Puter";
+            if(window.AndroidInterface && window.AndroidInterface.setActiveProvider) {
+                window.AndroidInterface.setActiveProvider(activeProvider);
+                window.AndroidInterface.showToast("Switched active engine provider to: " + activeProvider);
+            }
+            loadModels(); // Force rebuild of dropdown list instantly based on the active JSON!
+            syncGeminiUIState(); // update visibility of Settings drawer
+        } else if(action === 'end_session') {
+            // Specification 3: Context Menu "End Session" Permanent Deletion
+            const targetSessionId = currentSessionId;
+            
+            // Delete historical records natively via hybrid interface bridge
+            if (window.AndroidInterface && window.AndroidInterface.deleteSession) {
+                window.AndroidInterface.deleteSession(targetSessionId);
+            }
+            
+            // Purge local storage chat records web side
+            localStorage.removeItem('puter_chat_history_' + targetSessionId);
+            
+            // Instantiate fresh session ID and clear DOM logs
+            newSession();
+            
+            // Redraw session dropdown lists immediately
+            renderDynamicSessionList();
+        }
+        document.getElementById('customContextMenu').style.display = 'none';
+    }
+
+    /**
+     * Nostr connection force-propagation logic as specified.
+     */
+    function saveNostrSettings() {
+        if (window.AndroidInterface && window.AndroidInterface.getNostrSettings) {
+            try {
+                const settingsStr = window.AndroidInterface.getNostrSettings();
+                window.AndroidInterface.nativeLog("Nostr connection forced update with config: " + settingsStr, "native");
+                if (window.AndroidInterface.showToast) {
+                    window.AndroidInterface.showToast("Relay Connection Refreshed Successfully");
+                }
+            } catch (err) {
+                console.error("Nostr settings propagation error", err);
+            }
+        } else {
+            console.log("Telemetry Relay forced update executed (Native context missing).");
+        }
+    }
+
+    // --- ENHANCEMENT: HISTORY PERSISTENCE ---
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        if(chatHistory.length === 0) {
+            list.innerHTML = "<p style='color:#999;'>No history available.</p>";
+            return;
+        }
+        list.innerHTML = chatHistory.map(item => `
+            <div style="padding:10px; border-bottom:1px solid #eee;">
+                <b>${item.sender}:</b> ${item.text.substring(0, 60)}...
+            </div>
+        `).join('');
+    }
+
+    // --- STEP 4: LOAD SAVED HISTORY IMAGE RENDERING SYNC ---
+    function loadSavedHistory() {
+        chatHistory.forEach(item => {
+            if(item.type === "image") {
+                const log = document.getElementById('puterChatLog');
+                const div = document.createElement("div");
+                div.className = "message bot-message";
+                div.id = item.id;
+                div.innerHTML = `
+                    <div class="message-content">
+                        <div class="msg-header">
+                            <b>Bot:</b>
+                            <span class="material-symbols-outlined download-icon-tiny" onclick="window.AndroidInterface.saveImageToGallery('${item.src}')">download</span>
+                        </div>
+                        <img src="${item.src}" class="ai-generated-image">
+                    </div>
+                `;
+                log.appendChild(div);
+            } else {
+                appendChat(item.sender, item.text, true, item.files || []);
+            }
+        });
+    }
+
+    /* --- REQUIREMENT #3: DYNAMIC SESSION LOGIC WITH DELETE --- */
+
+    function renderDynamicSessionList() {
+        const container = document.getElementById('dynamicSessions');
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('puter_chat_history_')) {
+                keys.push(key.replace('puter_chat_history_', ''));
+            }
+        }
+
+        // Sort sessions by date (ID is timestamp)
+        keys.sort((a, b) => b - a);
+
+        let html = '<li class="session-divider">Old Sessions (Long-press to delete)</li>';
+        container.innerHTML = html;
+
+        keys.forEach((id, index) => {
+            const li = document.createElement('li');
+            li.textContent = `Session ${keys.length - index}`;
+
+            // REQUIREMENT: Long-press deletion logic
+            let sessionPressTimer;
+            li.onpointerdown = (e) => {
+                sessionPressTimer = window.setTimeout(() => {
+                    if (confirm("Delete this chat session permanently?")) {
+                        // Call native bridge to remove from shared preferences
+                        if(window.AndroidInterface) window.AndroidInterface.deleteSession(id);
+                        // Remove from local storage
+                        localStorage.removeItem('puter_chat_history_' + id);
+                        renderDynamicSessionList();
+                        // If it's the current session, start new one
+                        if(currentSessionId === id) newSession();
+                    }
+                }, 800);
+            };
+            li.onpointerup = () => clearTimeout(sessionPressTimer);
+            li.onpointercancel = () => clearTimeout(sessionPressTimer);
+
+            li.onclick = () => loadSession(id);
+            container.appendChild(li);
+        });
+    }
+
+    // Dynamic prompt and text input utility
+    function injectTextToInput(text) {
+        const input = document.getElementById('puterChatInput');
+        input.value = text;
+        handleInput();
+        input.focus();
+        document.getElementById('puterDropdownMenu').classList.remove('show');
+    }
+
+    // =========================================================================
+    // THE "MARKDOWN PROFESSIONALIZER" ENGINE
+    // =========================================================================
+    function cleanJsonToMarkdown(rawJson) {
+        try {
+            let obj = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+
+            // Helper to clean key labels and convert to Bold Headers (e.g. ram_size -> Ram Size:)
+            function formatKeyHeader(key) {
+                return key.split('_')
+                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(' ') + ":";
+            }
+
+            let markdown = "";
+
+            // Case 1: Universal Web Document
+            if (obj.type === "universal_web") {
+                const title = obj.metadata?.title || "Universal Web Article";
+                const url = obj.metadata?.url || "";
+
+                markdown += `### ${title}\n`;
+                if (url) markdown += `**Source:** ${url}\n\n`;
+                if (obj.content) {
+                    markdown += `${obj.content}\n`;
+                }
+            } 
+            // Case 2: Amazon E-Commerce Catalog Specifications
+            else {
+                const brand = obj.specifications?.brand || "Generic";
+                const model = obj.specifications?.model || "Product";
+                const asin = obj.specifications?.asin || "";
+
+                markdown += `### ${brand} ${model}\n`;
+                if (asin) markdown += `**ASIN:** ${asin}\n`;
+                if (obj.hierarchy) {
+                    markdown += `**Category:** ${obj.hierarchy.main_category || "Uncategorized"} > ${obj.hierarchy.sub_category || "Uncategorized"}\n`;
+                }
+                markdown += `\n**Specifications Sheet:**\n`;
+
+                const specs = obj.specifications || {};
+                for (const key in specs) {
+                    // Filter out and discard all Nostr-specific keys and metadata
+                    const blacklist = ["id", "sig", "pubkey", "created_at", "scraped_id", "asin", "brand", "model", "raw_content"];
+                    if (blacklist.includes(key.toLowerCase())) continue;
+
+                    // Strip raw JSON symbol characters
+                    const cleanValue = String(specs[key])
+                        .replace(/[{}[\]"']/g, '')
+                        .trim();
+
+                    if (cleanValue) {
+                        markdown += `- **${formatKeyHeader(key)}** ${cleanValue}\n`;
+                    }
+                }
+            }
+
+            return markdown.trim();
+        } catch (e) {
+            console.error("Professionalizer: Failed to clean JSON to Markdown.", e);
+            if (window.AndroidInterface && window.AndroidInterface.logHtmlGlitch) {
+                window.AndroidInterface.logHtmlGlitch("index.html", "Markdown Professionalizer Error: " + e.message);
+            }
+            return typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson);
+        }
+    }
+
+    /**
+     * NEW SYSTEM FUNCTION: Dynamic scraped document index render loop.
+     * Renders clean e-commerce metadata tables or universal articles directly
+     * into the three-dot menu dropdown list, featuring checkmark professionalizer hooks
+     * and long-press native deletion triggers.
+     */
+    function renderDynamicScrapedList() {
+        const container = document.getElementById('dynamicScrapedItems');
+        if (!container) return;
+
+        if (!window.AndroidInterface || !window.AndroidInterface.getScrapedProducts) {
+            container.innerHTML = '';
+            return;
+        }
+
+        try {
+            const rawData = window.AndroidInterface.getScrapedProducts();
+            const scrapedList = JSON.parse(rawData || "[]");
+
+            let html = '<li class="session-divider">Web Scrap (Long-press to delete)</li>';
+            container.innerHTML = html;
+
+            if (scrapedList.length === 0) {
+                const emptyLi = document.createElement('li');
+                emptyLi.style.color = '#999';
+                emptyLi.style.fontSize = '12px';
+                emptyLi.style.padding = '10px 20px';
+                emptyLi.textContent = 'No scraped items available';
+                container.appendChild(emptyLi);
+                return;
+            }
+
+            scrapedList.forEach(item => {
+                const li = document.createElement('li');
+                li.style.display = 'flex';
+                li.style.alignItems = 'center';
+                li.style.justifyContent = 'space-between';
+                li.style.padding = '10px 20px';
+                li.style.borderBottom = '1px solid #f0f0f0';
+
+                const isUniversal = (item.type === "universal_web");
+                const label = isUniversal 
+                    ? (item.metadata.title || item.scraped_id) 
+                    : `ASIN: ${item.specifications.asin || item.scraped_id}`;
+                const subLabel = isUniversal 
+                    ? "[Universal] " + (item.metadata.url || "").substring(0, 20) + "..."
+                    : `[Amazon] ${item.specifications.brand || "N/A"} - ${item.specifications.model || "N/A"}`;
+
+                // Left text content container
+                const textContainer = document.createElement('div');
+                textContainer.style.display = 'flex';
+                textContainer.style.flexDirection = 'column';
+                textContainer.style.flex = '1';
+                textContainer.style.overflow = 'hidden';
+                textContainer.style.cursor = 'pointer';
+                textContainer.innerHTML = `
+                    <span style="font-weight: bold; font-size: 13px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${label}</span>
+                    <span style="font-size: 11px; color: #1a73e8; margin-top: 2px;">${subLabel}</span>
+                `;
+
+                // Clicking the text container still loads the default analytical analytical prompt
+                textContainer.onclick = (e) => {
+                    e.stopPropagation();
+                    let prompt = "";
+                    if (isUniversal) {
+                        prompt = `Please analyze, summarize, and extract key insights from the following universal web document:\n\nTitle: ${item.metadata.title}\nURL: ${item.metadata.url}\nTimestamp: ${item.metadata.timestamp}\n\nContent:\n${item.content}`;
+                    } else {
+                        let tableText = "| Attribute | Value |\n| --- | --- |\n";
+                        for (const key in item.specifications) {
+                            if (key !== "scraped_id") {
+                                tableText += `| ${key} | ${item.specifications[key]} |\n`;
+                            }
+                        }
+                        prompt = `Please analyze the specifications for this Amazon product, explain the key technical attributes, and summarize its competitive advantages:\n\nCategory: ${item.hierarchy.main_category} > ${item.hierarchy.sub_category}\n\nProduct Specifications Table:\n${tableText}`;
+                    }
+                    injectTextToInput(prompt);
+                };
+
+                // Right checkmark button for structural formatting (The Professionalizer)
+                const tickBtn = document.createElement('div');
+                tickBtn.style.cursor = 'pointer';
+                tickBtn.style.padding = '5px';
+                tickBtn.style.display = 'flex';
+                tickBtn.style.alignItems = 'center';
+                tickBtn.style.justifyContent = 'center';
+                tickBtn.style.color = '#27ae60';
+                tickBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size: 24px; font-weight: bold;">check_circle</span>`;
+
+                // LOGIC TRIGGER: Processes raw JSON into clean Markdown spec sheet
+                tickBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const markdownText = cleanJsonToMarkdown(item);
+                    injectTextToInput(markdownText);
+                    if (window.AndroidInterface && window.AndroidInterface.showToast) {
+                        window.AndroidInterface.showToast(`Professionalized specifications: ${label}`);
+                    }
+                };
+
+                li.appendChild(textContainer);
+                li.appendChild(tickBtn);
+
+                // Pointer-based long-press deletion handler
+                let scrapPressTimer;
+                li.onpointerdown = (e) => {
+                    if (e.target.closest('span')) return; // Ignore if clicking checkmark button
+                    scrapPressTimer = window.setTimeout(() => {
+                        if (confirm(`Are you sure you want to permanently delete this scraped item: ${label}?`)) {
+                            if (window.AndroidInterface && window.AndroidInterface.deleteSession) {
+                                window.AndroidInterface.deleteSession(item.scraped_id);
+                            }
+                            renderDynamicScrapedList();
+                        }
+                    }, 800);
+                };
+                li.onpointerup = () => clearTimeout(scrapPressTimer);
+                li.onpointercancel = () => clearTimeout(scrapPressTimer);
+
+                container.appendChild(li);
+            });
+        } catch (err) {
+            console.error("Error rendering scraped list:", err);
+        }
+    }
+
+    function loadSession(id) {
+        currentSessionId = id;
+        localStorage.setItem('puter_current_session_id', id);
+        chatHistory = JSON.parse(localStorage.getItem('puter_chat_history_' + id) || "[]");
+        document.getElementById('puterChatLog').innerHTML = '';
+        loadSavedHistory();
+        document.getElementById('puterDropdownMenu').classList.remove('show');
+    }
+
+    // 4-Tier Handshake: Pulls nsec/npub keys natively and loads into Display nodes
+    function loadNostrIdentityInUI() {
+        if (window.AndroidInterface && window.AndroidInterface.getNativeIdentity) {
+            try {
+                const identityJson = JSON.parse(window.AndroidInterface.getNativeIdentity());
+                const pubKey = identityJson.public_key || "";
+                const privKey = identityJson.private_key || "";
+
+                // Mask keys for security
+                const displayedPub = pubKey ? (pubKey.substring(0, 10) + "..." + pubKey.substring(pubKey.length - 6)) : "Not Generated";
+                const displayedPriv = privKey ? (privKey.substring(0, 6) + "..." + privKey.substring(privKey.length - 6)) : "Not Generated";
+
+                document.getElementById('nostrNpubDisplay').textContent = displayedPub;
+                document.getElementById('nostrNsecDisplay').textContent = displayedPriv;
+
+                // Save raw keys on window scope for clipboard copies
+                window.__nostr_pub = pubKey;
+                window.__nostr_priv = privKey;
+            } catch (e) {
+                console.error("Error parsing native identity", e);
+            }
+        }
+    }
+
+    function copyNostrKey(type) {
+        const key = type === 'pub' ? window.__nostr_pub : window.__nostr_priv;
+        if (!key) {
+            alert("Nostr identity key not generated yet.");
+            return;
+        }
+        if (window.AndroidInterface && window.AndroidInterface.copyToClipboard) {
+            window.AndroidInterface.copyToClipboard(key);
+        } else {
+            navigator.clipboard.writeText(key);
+            alert("Copied to clipboard!");
+        }
+    }
+
+    // 4. Android Bridge Handlers
+    window.onSpeechResult = (text) => {
+      console.log("Speech Result Received: " + text);
+      document.getElementById('puterChatInput').value = text;
+      handleInput();
+      sendMessage(true); // Flag as voice message to trigger Lively TTS
     };
 
-    /* ============================================================================
-     * ENHANCED MICROPHONE CAPTURE LIVE - WITH DIAGNOSTICS
-     * ============================================================================ */
+    /* --- REQUIREMENT #2: CONTINUOUS INTERRUPTION LOOP --- */
+    window.onSpeechFinished = () => {
+        console.log("AI speech finished. Re-opening mic for continuous conversation.");
+        // Only trigger mic return if the session is currently in Voice Mode.
+        if(isVoiceResponseActive && window.AndroidInterface) {
+            window.AndroidInterface.startListening();
+        }
+    };
+
+    /* --- FEATURE ENHANCEMENT: FILE PICKER RESULT HANDLER --- */
+    window.onImageResult = (base64) => {
+      console.log("New File/Image Data Received via Bridge");
+
+      const fileName = "Upload_" + stagedFiles.length;
+      // Get MIME type from the Data URI
+      const match = base64.match(/^data:([^;]+);base64,/);
+      const mime = match ? match[1] : "application/octet-stream";
+
+      // Add to array
+      stagedFiles.push({
+          name: fileName,
+          type: mime,
+          data: base64
+      });
+
+      renderThumbnails();
+      handleInput();
+    };
+
+    function renderThumbnails() {
+        const area = document.getElementById('thumbnailArea');
+        area.innerHTML = '';
+
+        stagedFiles.forEach((file, index) => {
+            const div = document.createElement('div');
+            div.className = 'thumbnail';
+
+            if (file.type.startsWith('image/')) {
+                // Show actual image
+                div.innerHTML = `<img src="${file.data}">`;
+            } else {
+                // Show generic file icon with extension
+                const ext = file.type.split('/')[1] || "FILE";
+                div.innerHTML = `<span class="file-ext-icon">${ext.toUpperCase().substring(0, 3)}</span>`;
+            }
+
+            // Add remove button
+            const removeBtn = document.createElement('div');
+            removeBtn.className = 'thumb-remove-btn';
+            removeBtn.innerHTML = '×';
+            removeBtn.onclick = (e) => {
+                e.stopPropagation();
+                stagedFiles.splice(index, 1);
+                renderThumbnails();
+                handleInput();
+            };
+
+            div.appendChild(removeBtn);
+            area.appendChild(div);
+        });
+    }
+
+    function clearFiles() {
+        stagedFiles = [];
+        renderThumbnails();
+        handleInput();
+    }
+
+    // 5. SDK-DRIVEN AUTHENTICATION WITH CORE BUG FIXES
+    async function handleAuthAction(fromSendError = false) {
+        try {
+            if (typeof puter === 'undefined' || !puter.auth) {
+                alert("Puter SDK is loading, please wait a moment.");
+                return;
+            }
+            if (puter.auth.isSignedIn()) {
+                if (fromSendError) {
+                    console.log("Accidental Sign-Out Guard: Blocking logout during send check.");
+                    return;
+                }
+                console.log("User requested Sign Out...");
+                await puter.auth.signOut();
+                appendChat("System", "You have been signed out.");
+                updateAuthUI();
+            } else {
+                console.log("Triggering Puter SDK SignIn popup...");
+
+                /* FIX: CLEAR USAGE STATS ON NEW SIGN IN AS REQUESTED */
+                sessionTotalTokens = 0;
+                sessionTotalCredits = 0;
+                localStorage.removeItem('puter_persistent_tokens');
+                localStorage.removeItem('puter_persistent_credits');
+
+                await puter.auth.signIn(); 
+            }
+        } catch (error) {
+            console.error("Auth action failed:", error);
+            appendChat("System", "Authentication failed. Try again.");
+        }
+    }
+
+    function syncAuthSession() {
+        console.log("Origin Check: " + window.location.origin);
+        if (window.AndroidInterface && window.AndroidInterface.getSavedAuthToken) {
+            const token = window.AndroidInterface.getSavedAuthToken();
+            if (token) {
+                console.log("DIAGNOSTIC: Native session record exists. Allowing SDK to verify.");
+            }
+        }
+    }
+
+    function updateAuthUI() {
+      if (typeof puter !== 'undefined' && puter.auth && window.AndroidInterface) {
+        const logged = puter.auth.isSignedIn();
+        console.log("Auth State Synchronized: " + logged);
+        if (logged === lastAuthStatus) return;
+        lastAuthStatus = logged;
+        document.getElementById('authOption').textContent = logged ? "Sign Out" : "Sign In";
+
+        // Automatically fetch live models on sign-in if enabled
+        if (logged && isLiveMode) loadLiveModels();
+
+        window.AndroidInterface.onAuthStatusChanged(logged);
+      }
+    }
+
+    // =========================================================================
+    // NEW: AUTOMATED ACTIVE SEARCH AND IN-MEMORY RAG COMPLETION
+    // =========================================================================
+
+    /**
+     * Helper to read the hex public key of the native identity record.
+     */
+    async function getNativePubkeyHex() {
+        if (window.AndroidInterface && window.AndroidInterface.getNativeIdentity) {
+            try {
+                const idJson = JSON.parse(window.AndroidInterface.getNativeIdentity());
+                return idJson.public_key || "";
+            } catch (e) {
+                console.error("index.html: Error parsing native identity hex.", e);
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Lightweight SHA-256 string encoder utility.
+     */
+    async function sha256(dataString) {
+        const utf8 = new TextEncoder().encode(dataString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    /**
+     * Programs state descriptions inside loader indicator blocks dynamically.
+     */
+    function updateLoaderCardText(loaderId, text) {
+        const label = document.getElementById(`loader-state-label-${loaderId}`);
+        if (label) label.innerText = text;
+    }
+
+    /**
+     * Fallback processor designed to preserve conversational loops if sockets fail.
+     */
+    async function executeStandardFallback(queryText, loaderId) {
+        const activeModel = globalSelectedModel;
+        try {
+            const targetLanguage = localStorage.getItem("puter_target_language") || "";
+            const nativeLanguage = getNativeLanguageName(targetLanguage);
+            let activeSystemMessage = customInstruction;
+            if (targetLanguage) {
+                const systemDirective = `IMPORTANT:\nALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n\nNEVER use English.\n\nEven if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}. Do not transliterate. Write strictly in the native script characters of the language.`;
+                activeSystemMessage = activeSystemMessage ? `${activeSystemMessage}\n\n${systemDirective}` : systemDirective;
+            }
+
+            let finalQueryText = queryText;
+            if (targetLanguage) {
+                const scriptName = nativeLanguage || targetLanguage;
+                finalQueryText += `\n\n[System Rule: Respond strictly in ${scriptName} script]`;
+            }
+
+            const messagesArray = [];
+            if (activeSystemMessage) {
+                messagesArray.push({ role: 'system', content: activeSystemMessage });
+            }
+            messagesArray.push({ role: 'user', content: finalQueryText });
+
+            const streamResp = await puter.ai.chat(messagesArray, {
+                model: activeModel,
+                stream: true
+            });
+
+            // Purge the header loader nodes, transforming card back to standard conversational bubble
+            const loaderTextEl = document.getElementById(`loader-indicator-text-${loaderId}`);
+            if (loaderTextEl) loaderTextEl.remove();
+
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            let fullBotText = "";
+            for await (const chunk of streamResp) {
+                if (chunk.usage) { updateUsageUI(chunk.usage); continue; }
+                const chunkText = chunk?.text || chunk?.message?.content || "";
+                if (chunkText) {
+                    fullBotText += chunkText;
+                    targetSpan.innerHTML = marked.parse(fullBotText);
+                    document.querySelectorAll(`#stream-content-${loaderId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+            }
+
+            // Persist conversational fallback to historical databases
+            chatHistory.push({sender: "Bot", text: fullBotText, id: `msg-${loaderId}`, files: []});
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+            if (isVoiceResponseActive && window.AndroidInterface) {
+                window.AndroidInterface.speak(fullBotText);
+            }
+        } catch (e) {
+            console.error("index.html: Fallback completing cycle failed.", e);
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            if (targetSpan) targetSpan.innerHTML = "Fallback completed with error: " + e.message;
+        }
+    }
+
+    /**
+     * Silent execution engine driving prompt compiles, boundary formatting,
+     * and in-memory RAG completion.
+     * Requirement: Instruction Two, Five and Seven
+     */
+    async function executeAutoModeRAG(queryText, rawScrapedJson, loaderId) {
+        if (window.AndroidInterface) {
+            window.AndroidInterface.nativeLog("Starting AutoMode RAG context extraction...", "native");
+        }
+        let liveContextString = "";
+        try {
+            const items = JSON.parse(rawScrapedJson);
+            if (Array.isArray(items)) {
+                // Slice top 2 crawled web pages matching user's current query
+                const top2 = items.slice(0, 2);
+                top2.forEach(item => {
+                    const isUniversal = (item.type === "universal_web");
+                    const url = isUniversal ? (item.metadata?.url || "N/A") : `https://www.amazon.in/dp/${item.specifications?.asin || 'N/A'}`;
+                    const title = isUniversal ? (item.metadata?.title || "Universal Article") : `${item.specifications?.brand || ''} ${item.specifications?.model || ''}`;
+                    const contentText = isUniversal ? (item.content || "") : JSON.stringify(item.specifications);
+
+                    // Structured Data boundaries Layer 2
+                    liveContextString += `[START OF LIVE WEB CONTEXT]\n`;
+                    liveContextString += `Source URL: ${url}\n`;
+                    liveContextString += `Page Title: ${title}\n`;
+                    liveContextString += `Scraped Content: ${contentText}\n`;
+                    liveContextString += `[END OF LIVE WEB CONTEXT]\n\n`;
+                });
+            }
+        } catch (e) {
+            console.error("index.html: RAG Context extraction error.", e);
+            liveContextString = `[START OF LIVE WEB CONTEXT]\nScraped Content: ${rawScrapedJson}\n[END OF LIVE WEB CONTEXT]\n`;
+        }
+
+        // Layer 1: System and Role Definition
+        let systemPrompt = "You are an up-to-date, conversational AI assistant equipped with real-time web-crawling capabilities.\n";
+        systemPrompt += "You have been provided with fresh, crawled web documents matching the user's current query. You must prioritize this provided web data to construct your response.\n\n";
+
+        // Layer 2: Compile XML boundaries
+        let groundingPrompt = systemPrompt + liveContextString;
+
+        // Layer 3: Behavioral and Formatting Constraints
+        groundingPrompt += "=== BEHAVIORAL AND FORMATTING CONSTRAINTS ===\n";
+        groundingPrompt += "- The \"No Technical Jargon\" Rule: You must NEVER mention technical or developmental terms under any circumstances, including but not limited to: \"raw JSON\", \"scraped databases\", \"API payloads\", \"web crawlers\", \"HTML tags\", \"Nostr events\", or \"relays\".\n";
+        groundingPrompt += "- The \"Natural Voice\" Rule: You must speak naturally, directly, and conversationally, as if you naturally possess this live, up-to-date knowledge.\n";
+        groundingPrompt += "- The \"Complete Answer Requirement\": You must construct a complete, detailed, and direct answer using the provided crawled web context. You must never output refusal phrases such as 'I could not find the answer', 'the context does not say', 'the data is missing', or 'I don't know'. Use the provided specifications and text to answer the query fully and directly.\n";
+
+        // Specification 1: Language Constraint dynamic rule integration inside grounding constraints checklist
+        const targetLanguage = localStorage.getItem("puter_target_language") || "";
+        const nativeLanguage = getNativeLanguageName(targetLanguage);
+        if (targetLanguage) {
+            groundingPrompt += `- The Language Constraint:\n  IMPORTANT:\n  ALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n  NEVER use English.\n  Even if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}.\n  Do not transliterate. Write strictly in the native script characters of the language.\n`;
+        }
+        groundingPrompt += "\n";
+
+        // =========================================================================
+        // NEW: PATHWAY ROUTING BRANCH: PUTER VS NATIVE GEMINI IN AUTO MODE
+        // =========================================================================
+        if (activeProvider === "Gemini") {
+            const modelId = globalSelectedModel;
+            const msgId = "gemini-" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+            
+            const contents = [{
+                role: "user",
+                parts: [{ text: `USER QUESTION: ${queryText}` }]
+            }];
+
+            const isAudioModel = modelId.includes("tts") || (globalModelObject && globalModelObject.categories && globalModelObject.categories.includes("audio"));
+            const supportsStreaming = !isAudioModel && !modelId.includes("live-preview") && isStreaming;
+            const isDedicatedTts = modelId.includes("tts");
+
+            const payload = { contents: contents };
+
+            if (!isDedicatedTts) {
+                payload.systemInstruction = { parts: [{ text: groundingPrompt }] };
+            } else {
+                contents[0].parts.unshift({ text: groundingPrompt });
+            }
+
+            const payloadJson = JSON.stringify(payload);
+
+            const loader = document.getElementById('ecgLoader');
+            if (loader) loader.style.display = 'none';
+
+            setupGeminiCallbacks(queryText, msgId, supportsStreaming);
+
+            try {
+                if (window.AndroidInterface && window.AndroidInterface.executeGeminiCall) {
+                    window.AndroidInterface.executeGeminiCall(modelId, payloadJson, supportsStreaming, msgId);
+                } else {
+                    throw new Error("Android Interface native bridge not available.");
+                }
+            } catch (e) {
+                const targetSpan = document.getElementById(`stream-content-${msgId}`);
+                if (targetSpan) targetSpan.innerHTML = "RAG execution failed: " + e.message;
+            }
+            return;
+        }
+
+        let finalUserQueryText = `USER QUESTION: ${queryText}`;
+        if (targetLanguage) {
+            const scriptName = nativeLanguage || targetLanguage;
+            finalUserQueryText += `\n\n[System Rule: Respond strictly in ${scriptName} script]`;
+        }
+
+        // Encapsulate structured system prompt and anchored user query into roles arrays
+        const messagesArray = [
+            { role: "system", content: groundingPrompt },
+            { role: "user", content: finalUserQueryText }
+        ];
+
+        const activeModel = globalSelectedModel;
+        try {
+            updateLoaderCardText(loaderId, "AI is synthesizing web findings...");
+
+            if (window.AndroidInterface) {
+                window.AndroidInterface.nativeLog("Delivering grounding grounding payload to Puter completions pipeline. Model: " + activeModel, "native");
+            }
+
+            // Standardize RAG output as messages array to avoid system-message proxy omissions
+            const streamResp = await puter.ai.chat(messagesArray, {
+                model: activeModel,
+                stream: true
+            });
+
+            // Strip the diagnostic loaders, converting card back to standard chat bubble
+            const loaderTextEl = document.getElementById(`loader-indicator-text-${loaderId}`);
+            if (loaderTextEl) loaderTextEl.remove();
+
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            let fullBotText = "";
+            for await (const chunk of streamResp) {
+                if (chunk.usage) { updateUsageUI(chunk.usage); continue; }
+                const chunkText = chunk?.text || chunk?.message?.content || "";
+                if (chunkText) {
+                    fullBotText += chunkText;
+                    targetSpan.innerHTML = marked.parse(fullBotText);
+                    document.querySelectorAll(`#stream-content-${loaderId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+            }
+
+            // Persist the synthesized conversation context back to session history
+            chatHistory.push({sender: "Bot", text: fullBotText, id: `msg-${loaderId}`, files: []});
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+            if (isVoiceResponseActive && window.AndroidInterface) {
+                window.AndroidInterface.speak(fullBotText);
+            }
+        } catch (completedError) {
+            console.error("index.html: Grounding prompt execution failure.", completedError);
+            if (window.AndroidInterface && window.AndroidInterface.logHtmlGlitch) {
+                window.AndroidInterface.logHtmlGlitch("index.html", "RAG execution failure: " + completedError.message);
+            }
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            if (targetSpan) targetSpan.innerHTML = "RAG Synthesize error: " + completedError.message;
+        }
+    }
+
+    /**
+     * Intercepts messages in Auto Mode, handles programmatic WebSockets,
+     * signs queries, and subscribes for crawled responses.
+     * Note: Watchdog timeout removed. Implemented persistent polling fallback instead.
+     */
+    async function executeAutoModeQuery(fromVoice, queryText) {
+        const queryTimestamp = Math.floor(Date.now() / 1000);
+        const input = document.getElementById('puterChatInput');
+        let wakeupGuardTimeout; 
+        let pollInterval; // Reference tracker to dispose of interval gracefully
+
+        // Clean user input textarea immediately
+        input.value = "";
+        handleInput();
+
+        // Render User bubble locally
+        appendChat("User", queryText, false, []);
+
+        // Step A: Append loader card to prevent visual locks
+        const loaderId = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+        const log = document.getElementById('puterChatLog');
+        const div = document.createElement('div');
+        div.className = "message bot-message";
+        div.id = `msg-${loaderId}`;
+
+        // Dynamic Loader Pointer Listeners with Micro-movement Cancellations
+        let pressTimer;
+        let startX, startY;
+        div.onpointerdown = (e) => { 
+            if (pressTimer) clearTimeout(pressTimer);
+            startX = e.clientX;
+            startY = e.clientY;
+            pressTimer = window.setTimeout(() => { showContextMenu(e, "", `msg-${loaderId}`); }, 700); 
+        };
+        div.onpointermove = (e) => {
+            if (pressTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 8) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+        div.onpointerup = () => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+        div.onpointercancel = () => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+        div.oncontextmenu = (e) => e.preventDefault();
+
+        div.innerHTML = `
+            <div class="message-content" style="position: relative; width: 100%;">
+                <b>Bot:</b><br>
+                <div id="loader-indicator-text-${loaderId}" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <svg class="ecg-graph" viewBox="0 0 100 30" style="width: 50px; height: 15px; margin: 0;">
+                        <path class="ecg-path" d="M0,15 L25,15 L30,5 L35,25 L40,15 L60,15 L65,0 L75,30 L80,15 L100,15" />
+                    </svg>
+                    <span id="loader-state-label-${loaderId}" style="font-size: 13px; color: #666; font-weight: bold;">AI is waiting for Kiwi Browser response...</span>
+                </div>
+                <span id="stream-content-${loaderId}"></span>
+            </div>
+        `;
+        log.appendChild(div);
+        window.scrollTo(0, document.body.scrollHeight);
+
+        // Fetch existing entries before running query to isolate new inbox payloads
+        const existingIds = new Set();
+        try {
+            if (window.AndroidInterface && window.AndroidInterface.getScrapedProducts) {
+                const initialProducts = JSON.parse(window.AndroidInterface.getScrapedProducts() || "[]");
+                initialProducts.forEach(p => {
+                    const id = p.scraped_id || (p.metadata && p.metadata.url);
+                    if (id) existingIds.add(id);
+                });
+            }
+        } catch (e) {
+            console.error("Error reading initial products:", e);
+        }
+
+        // Step B: Build, Sign and Broadcast search query over Nostr
+        try {
+            if (!window.AndroidInterface) {
+                updateLoaderCardText(loaderId, "Interface lost. Executing standard fallback...");
+                executeStandardFallback(queryText, loaderId);
+                return;
+            }
+
+            window.AndroidInterface.nativeLog("AutoMode query initialized at queryTimestamp: " + queryTimestamp, "native");
+
+            const rawPubkey = await getNativePubkeyHex();
+            if (!rawPubkey) {
+                window.AndroidInterface.nativeLog("AutoMode Identity key lookup failed.", "error");
+                updateLoaderCardText(loaderId, "Identity key not found. Executing standard fallback...");
+                executeStandardFallback(queryText, loaderId);
+                return;
+            }
+
+            // BIP-340 Key Translation (translates npub1 Bech32 string format to 64-char Hex format)
+            let pubkeyHex = rawPubkey;
+            if (rawPubkey.startsWith("npub1")) {
+                try {
+                    const decodedBytes = decodeBech32(rawPubkey);
+                    pubkeyHex = bytesToHex(decodedBytes);
+                } catch (keyError) {
+                    window.AndroidInterface.nativeLog("Failed to translate npub to hex: " + keyError.message, "error");
+                    updateLoaderCardText(loaderId, "Key decoding failed. Executing standard fallback...");
+                    executeStandardFallback(queryText, loaderId);
+                    return;
+                }
+            }
+
+            const settingsJson = JSON.parse(window.AndroidInterface.getNostrSettings());
+            const relayUrl = settingsJson.relay_url || "wss://relay.damus.io";
+
+            window.AndroidInterface.nativeLog("Connecting to relay URL: " + relayUrl, "native");
+            updateLoaderCardText(loaderId, "Establishing socket connection to relay...");
+            const tempSocket = new WebSocket(relayUrl);
+
+            // ACTIVE INBOX POLLING CHECK (Second Priority):
+            // Runs checks at non-blocking intervals to process payloads directly matching key attributes.
+            // The connection is never closed early, so it does not interfere with standard user operations.
+            pollInterval = setInterval(() => {
+                try {
+                    if (window.AndroidInterface && window.AndroidInterface.getScrapedProducts) {
+                        const dbJson = window.AndroidInterface.getScrapedProducts();
+                        const products = JSON.parse(dbJson || "[]");
+
+                        // Match against records added strictly after search initialization
+                        const newProducts = products.filter(p => {
+                            const id = p.scraped_id || (p.metadata && p.metadata.url);
+                            return id && !existingIds.has(id);
+                        });
+
+                        if (newProducts.length > 0) {
+                            const keywords = queryText.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                            let matched = newProducts.filter(p => {
+                                const strRep = JSON.stringify(p).toLowerCase();
+                                return keywords.length === 0 || keywords.some(keyword => strRep.includes(keyword));
+                            });
+
+                            if (matched.length === 0 && newProducts.length > 0) {
+                                matched = newProducts; // default fallback
+                            }
+
+                            if (matched.length > 0) {
+                                window.AndroidInterface.nativeLog("Poller fallback matching payload processed. Terminating poll loops.", "native");
+
+                                clearInterval(pollInterval);
+                                if (wakeupGuardTimeout) clearTimeout(wakeupGuardTimeout);
+                                tempSocket.close();
+
+                                const rawScrapedJson = JSON.stringify(matched.slice(-2));
+                                executeAutoModeRAG(queryText, rawScrapedJson, loaderId);
+                            }
+                        }
+                    }
+                } catch (pollErr) {
+                    console.error("Poller inbox check exception:", pollErr);
+                }
+            }, 2500); // Check every 2.5 seconds
+
+            tempSocket.onopen = async () => {
+                window.AndroidInterface.nativeLog("Socket connected. Broadcasting signed query event...", "native");
+                updateLoaderCardText(loaderId, "Socket connected. Broadcasting signed query...");
+
+                const createdAt = Math.floor(Date.now() / 1000);
+                const tags = [["t", "puter_unofficial_query"]];
+
+                const serializeArr = [
+                    0,
+                    pubkeyHex,
+                    createdAt,
+                    1,
+                    tags,
+                    queryText
+                ];
+
+                const serialized = JSON.stringify(serializeArr);
+                const eventId = await sha256(serialized);
+
+                const unsignedEvent = {
+                    id: eventId,
+                    pubkey: pubkeyHex,
+                    created_at: createdAt,
+                    kind: 1,
+                    tags: tags,
+                    content: queryText
+                };
+
+                // Request cryptographic signature natively via Java Bridge using secp256k1
+                const sig = window.AndroidInterface.signNostrEvent(JSON.stringify(unsignedEvent));
+                if (!sig) {
+                    clearInterval(pollInterval);
+                    if (wakeupGuardTimeout) clearTimeout(wakeupGuardTimeout);
+                    tempSocket.close();
+                    window.AndroidInterface.nativeLog("Native Nostr signing process failed.", "error");
+                    updateLoaderCardText(loaderId, "Sign failed natively. Executing standard fallback...");
+                    executeStandardFallback(queryText, loaderId);
+                    return;
+                }
+
+                const signedEvent = {
+                    ...unsignedEvent,
+                    sig: sig
+                };
+
+                // establish the 5-second lazy wake-up guard
+                wakeupGuardTimeout = setTimeout(() => {
+                    if (window.AndroidInterface && window.AndroidInterface.wakeUpKiwi) {
+                        window.AndroidInterface.nativeLog("Extension connection check failed (5s elapsed). Dispatching native wake-up...", "warning");
+                        updateLoaderCardText(loaderId, "Extension sleeping. Waking up Kiwi Browser...");
+                        window.AndroidInterface.wakeUpKiwi(queryText);
+                    }
+                }, 5000);
+
+                // Publish Event
+                tempSocket.send(JSON.stringify(["EVENT", signedEvent]));
+                window.AndroidInterface.nativeLog("Signed query published successfully. ID: " + eventId, "native");
+
+                // Subscribe to scraped event containing extracted result JSONs matching query timestamp
+                updateLoaderCardText(loaderId, "Waiting for extension crawl response...");
+                const reqFrame = ["REQ", "auto_mode_sub", {
+                    kinds: [1],
+                    authors: [pubkeyHex],
+                    "#t": ["puter_unofficial_scrap"],
+                    since: queryTimestamp
+                }];
+                tempSocket.send(JSON.stringify(reqFrame));
+                window.AndroidInterface.nativeLog("Registered NIP-01 subscription auto_mode_sub with timestamp constraint (since: " + queryTimestamp + ")", "native");
+            };
+
+            tempSocket.onmessage = async (msgEvent) => {
+                try {
+                    const message = JSON.parse(msgEvent.data);
+                    if (Array.isArray(message) && message[0] === "EVENT" && message[2]) {
+                        const incomingEvent = message[2];
+                        const content = incomingEvent.content;
+                        if (content) {
+                            if (incomingEvent.created_at <= queryTimestamp) {
+                                window.AndroidInterface.nativeLog("Ignoring stale cached replay event ID: " + incomingEvent.id.substring(0, 8) + " (created_at: " + incomingEvent.created_at + " <= queryTimestamp: " + queryTimestamp + ")", "warning");
+                                return; // Keep loop active
+                            }
+
+                            // Clean loop monitors
+                            clearInterval(pollInterval);
+                            if (wakeupGuardTimeout) {
+                                clearTimeout(wakeupGuardTimeout);
+                                window.AndroidInterface.nativeLog("Lazy wake-up guard cleared. Extension already active.", "native");
+                            }
+
+                            window.AndroidInterface.nativeLog("Genuine new live response captured [ID: " + incomingEvent.id.substring(0, 8) + "]. Clearing timers.", "native");
+
+                            try {
+                                window.AndroidInterface.addScrapedProduct(incomingEvent.id, content);
+                                window.AndroidInterface.nativeLog("Scraped payload written natively under ID: " + incomingEvent.id, "native");
+                            } catch (dbErr) {
+                                window.AndroidInterface.logHtmlGlitch("index.html", "Error syncing local inbox database: " + dbErr.message);
+                            }
+
+                            tempSocket.close();
+
+                            // Trigger in-memory prompt generation
+                            await executeAutoModeRAG(queryText, content, loaderId);
+                        }
+                    }
+                } catch (e) {
+                    console.error("index.html: onmessage parse exception", e);
+                    window.AndroidInterface.logHtmlGlitch("index.html", "onmessage parser exception: " + e.message);
+                }
+            };
+
+            tempSocket.onerror = (err) => {
+                window.AndroidInterface.nativeLog("Relay socket communication experienced a network error. Poller fallback checks continue...", "error");
+                // Keeps poller checking active without forced fallbacks
+            };
+
+        } catch (setupError) {
+            console.error("index.html: Auto Mode pipeline setup failure", setupError);
+            if (window.AndroidInterface) {
+                window.AndroidInterface.nativeLog("Auto Mode pipeline initialization failed: " + setupError.message, "error");
+            }
+            clearInterval(pollInterval);
+            if (wakeupGuardTimeout) {
+                clearTimeout(wakeupGuardTimeout);
+            }
+            updateLoaderCardText(loaderId, "Setup process failed. Executing standard fallback...");
+            executeStandardFallback(queryText, loaderId);
+        }
+    }
+
+    // =========================================================================
+    // NEW: DIRECT NATIVE GEMINI API INTEGRATION SENDERS
+    // =========================================================================
+
+    async function executeNativeGeminiSend(promptText, files) {
+        const apiKey = window.AndroidInterface ? window.AndroidInterface.getGeminiApiKey() : localStorage.getItem("gemini_user_api_key");
+        const modelId = globalSelectedModel;
+
+        const useSearch = window.AndroidInterface ? (window.AndroidInterface.getGeminiGrounding() === "search") : false;
+        const voiceName = window.AndroidInterface ? (window.AndroidInterface.getGeminiVoice ? window.AndroidInterface.getGeminiVoice() : localStorage.getItem("gemini_user_voice")) : "Puck";
+
+        // WebSocket Live Protocol Gateway Redirect Loop
+        const isLiveModel = modelId.includes("live") || modelId.includes("native-audio") || modelId.includes("exp");
+
+        if (isLiveModel) {
+            if (!apiKey) {
+                alert("Please configure a valid Gemini Access API key first in Settings.");
+                return;
+            }
+            // Check if socket is already connected or in a handshake sequence to block duplicates
+            if (liveWs && (liveWs.readyState === WebSocket.OPEN || liveWs.readyState === WebSocket.CONNECTING)) {
+                if (liveWs.readyState === WebSocket.OPEN) {
+                    sendLiveTextQuery(promptText, files);
+                } else {
+                    pendingLiveQuery = { text: promptText, files: files };
+                }
+            } else {
+                pendingLiveQuery = { text: promptText, files: files };
+                connectWebSocketLive(apiKey, modelId, voiceName, useSearch);
+            }
+            clearFiles();
+            return;
+        }
+
+        const loader = document.getElementById('ecgLoader');
+        loader.style.display = 'flex';
+        window.scrollTo(0, document.body.scrollHeight);
+
+        const msgId = "gemini-" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+
+        const contents = [];
+        const parts = [];
+
+        if (promptText) {
+            parts.push({ text: promptText });
+        }
+
+        files.forEach(f => {
+            if (f.type.startsWith('image/')) {
+                const match = f.data.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    parts.push({
+                        inlineData: {
+                            mimeType: match[1],
+                            data: match[2]
+                        }
+                    });
+                }
+            } else {
+                parts.push({ text: `[Attached File: ${f.name}]\n${f.data}` });
+            }
+        });
+
+        contents.push({ role: "user", parts: parts });
+
+        const payload = { contents: contents };
+
+        const isAudioModel = modelId.includes("tts") || (globalModelObject && globalModelObject.categories && globalModelObject.categories.includes("audio"));
+        const isDedicatedTts = modelId.includes("tts");
+
+        if (isAudioModel) {
+            payload.generationConfig = {
+                responseModalities: ["AUDIO"],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: voiceName
+                        }
+                    }
+                }
+            };
+        }
+
+        const groundingType = window.AndroidInterface ? window.AndroidInterface.getGeminiGrounding() : "none";
+        if (groundingType !== "none") {
+            payload.tools = [];
+            if (groundingType === "search") {
+                payload.tools.push({ "googleSearch": {} });
+            } else if (groundingType === "maps") {
+                payload.tools.push({ "googleMaps": {} });
+            }
+        }
+
+        if (!isDedicatedTts) {
+            const targetLanguage = localStorage.getItem("puter_target_language") || "";
+            const nativeLanguage = getNativeLanguageName(targetLanguage);
+            if (targetLanguage) {
+                const systemDirective = `IMPORTANT:\nALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n\nNEVER use English.\n\nEven if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}. Do not transliterate. Write strictly in the native script characters of the language.`;
+                payload.systemInstruction = { parts: [{ text: systemDirective }] };
+            } else if (customInstruction) {
+                payload.systemInstruction = { parts: [{ text: customInstruction }] };
+            }
+        }
+
+        const payloadJson = JSON.stringify(payload);
+        const isStreaming = window.AndroidInterface ? window.AndroidInterface.getGeminiStreaming() : true;
+        const supportsStreaming = !isAudioModel && !modelId.includes("live-preview") && isStreaming;
+
+        clearFiles();
+
+        setupGeminiCallbacks(promptText, msgId, supportsStreaming);
+
+        try {
+            if (window.AndroidInterface && window.AndroidInterface.executeGeminiCall) {
+                window.AndroidInterface.executeGeminiCall(modelId, payloadJson, supportsStreaming, msgId);
+            } else {
+                throw new Error("Android Interface native bridge not available.");
+            }
+        } catch (e) {
+            loader.style.display = 'none';
+            appendChat("System", "Native Execution failed: " + e.message);
+        }
+    }
+
+    // Global callback cache to process streaming chunk characters
+    let activeGeminiBuffer = "";
+    let braceCount = 0;
+    let startIndex = -1;
+
+    function setupGeminiCallbacks(promptText, msgId, isStreaming) {
+        activeGeminiBuffer = "";
+        braceCount = 0;
+        startIndex = -1;
+
+        const log = document.getElementById('puterChatLog');
+        const div = document.createElement('div');
+        div.className = "message bot-message";
+        div.id = msgId;
+
+        let pressTimer;
+        let startX, startY;
+        div.onpointerdown = (e) => { 
+            if (pressTimer) clearTimeout(pressTimer);
+            startX = e.clientX;
+            startY = e.clientY;
+            pressTimer = window.setTimeout(() => { showContextMenu(e, activeGeminiBuffer, msgId); }, 700); 
+        };
+        div.onpointermove = (e) => {
+            if (pressTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 8) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+        div.onpointerup = () => {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        };
+        div.onpointercancel = () => {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        };
+        div.oncontextmenu = (e) => e.preventDefault();
+
+        div.innerHTML = `<div class="message-content"><b>Bot:</b><br><span id="stream-content-${msgId}">Thinking...</span></div>`;
+        log.appendChild(div);
+        window.scrollTo(0, document.body.scrollHeight);
+
+        window.onGeminiStreamChunk = function(targetMsgId, rawChunk) {
+            if (targetMsgId !== msgId) return;
+            activeGeminiBuffer += rawChunk;
+
+            const targetSpan = document.getElementById(`stream-content-${msgId}`);
+            if (!targetSpan) return;
+
+            let textToRender = "";
+            let tempBuffer = activeGeminiBuffer;
+
+            for (let i = 0; i < tempBuffer.length; i++) {
+                if (tempBuffer[i] === '{') {
+                    if (braceCount === 0) startIndex = i;
+                    braceCount++;
+                } else if (tempBuffer[i] === '}') {
+                    braceCount--;
+                    if (braceCount === 0 && startIndex !== -1) {
+                        const jsonStr = tempBuffer.substring(startIndex, i + 1);
+                        try {
+                            const obj = JSON.parse(jsonStr);
+                            const partText = obj.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (partText) {
+                                textToRender += partText;
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+
+            if (textToRender) {
+                targetSpan.innerHTML = marked.parse(textToRender);
+                document.querySelectorAll(`#stream-content-${msgId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+            }
+            window.scrollTo(0, document.body.scrollHeight);
+        };
+
+        window.onGeminiStreamComplete = function(targetMsgId) {
+            if (targetMsgId !== msgId) return;
+            finalizeGeminiResponse(msgId);
+        };
+
+        window.onGeminiComplete = function(targetMsgId, fullResponse) {
+            if (targetMsgId !== msgId) return;
+            const targetSpan = document.getElementById(`stream-content-${msgId}`);
+            if (!targetSpan) return;
+
+            try {
+                const obj = JSON.parse(fullResponse);
+                let textTranscript = "";
+                let base64Audio = null;
+                const parts = obj.candidates?.[0]?.content?.parts || [];
+
+                for (const part of parts) {
+                    if (part.text) {
+                        textTranscript += part.text + "\n";
+                    }
+                    if (part.inlineData && part.inlineData.data) {
+                        base64Audio = part.inlineData.data;
+                    }
+                }
+
+                let renderedText = "";
+                textTranscript = textTranscript.trim();
+
+                if (base64Audio) {
+                    // PCM WAV encapsulation execution
+                    const wavBuffer = pcmToWav(base64ToArrayBuffer(base64Audio), 24000, 1, 16);
+                    const blob = new Blob([wavBuffer], { type: "audio/wav" });
+                    const audioUrl = URL.createObjectURL(blob);
+
+                    targetSpan.dataset.audioUrl = audioUrl;
+
+                    if (window.activeCustomAudioSource) {
+                        try { window.activeCustomAudioSource.pause(); } catch(e) {}
+                    }
+
+                    const audio = new Audio(audioUrl);
+                    window.activeCustomAudioSource = audio;
+
+                    if (isVoiceResponseActive) {
+                        audio.onended = () => { window.onSpeechFinished(); };
+                        audio.onerror = () => { window.onSpeechFinished(); };
+                    }
+
+                    audio.play();
+                    renderedText = textTranscript || `🔊 <span class="text-slate-400 italic">Native Audio Response Played</span>`;
+                } else {
+                    renderedText = textTranscript || "No response generated.";
+                }
+
+                targetSpan.innerHTML = marked.parse(renderedText);
+                document.querySelectorAll(`#stream-content-${msgId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+
+                const metadata = obj.candidates?.[0]?.groundingMetadata;
+                if (metadata) {
+                    targetSpan.innerHTML += renderGroundingMetadataMarkup(metadata);
+                }
+
+                finalizeGeminiResponse(msgId, renderedText);
+            } catch (e) {
+                targetSpan.innerHTML = "Error parsing response: " + e.message;
+                finalizeGeminiResponse(msgId, "Error parsing response: " + e.message);
+            }
+        };
+
+        window.onGeminiError = function(targetMsgId, error) {
+            if (targetMsgId !== msgId) return;
+            const loader = document.getElementById('ecgLoader');
+            loader.style.display = 'none';
+            
+            const targetSpan = document.getElementById(`stream-content-${msgId}`);
+            if (targetSpan) {
+                targetSpan.innerHTML = `<span class="text-rose-500">Error: ${error}</span>`;
+            }
+            finalizeGeminiResponse(msgId, "Error: " + error);
+        };
+    }
+
+    function finalizeGeminiResponse(msgId, textBody = null) {
+        const loader = document.getElementById('ecgLoader');
+        loader.style.display = 'none';
+
+        let finalBody = textBody;
+        if (!finalBody) {
+            let textToRender = "";
+            let tempBuffer = activeGeminiBuffer;
+            let bCount = 0;
+            let sIndex = -1;
+
+            for (let i = 0; i < tempBuffer.length; i++) {
+                if (tempBuffer[i] === '{') {
+                    if (bCount === 0) sIndex = i;
+                    bCount++;
+                } else if (tempBuffer[i] === '}') {
+                    bCount--;
+                    if (bCount === 0 && sIndex !== -1) {
+                        const jsonStr = tempBuffer.substring(sIndex, i + 1);
+                        try {
+                            const obj = JSON.parse(jsonStr);
+                            const partText = obj.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (partText) textToRender += partText;
+                        } catch (e) {}
+                    }
+                }
+            }
+            finalBody = textToRender || "No output generated.";
+            const targetSpan = document.getElementById(`stream-content-${msgId}`);
+            if (targetSpan) {
+                targetSpan.innerHTML = marked.parse(finalBody);
+                try {
+                    const lastJson = tempBuffer.substring(tempBuffer.lastIndexOf('{'));
+                    const obj = JSON.parse(lastJson);
+                    if (obj.candidates?.[0]?.groundingMetadata) {
+                        targetSpan.innerHTML += renderGroundingMetadataMarkup(obj.candidates[0].groundingMetadata);
+                    }
+                } catch(e) {}
+            }
+        }
+
+        appendTtsTriggerButton(msgId);
+
+        chatHistory.push({sender: "Bot", text: finalBody, id: msgId, files: []});
+        localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+        window.scrollTo(0, document.body.scrollHeight);
+
+        if (isVoiceResponseActive && !document.getElementById(msgId)?.querySelector(".message-content")?.dataset?.audioUrl) {
+            if (window.AndroidInterface) {
+                window.AndroidInterface.speak(finalBody);
+            }
+        }
+    }
+
+    function renderGroundingMetadataMarkup(metadata) {
+        if (!metadata) return "";
+        let html = `<div style="margin-top:12px; padding-top:8px; border-top:1px solid #ddd; font-size:12px; color:#666;">`;
+        
+        if (metadata.webSearchQueries && metadata.webSearchQueries.length > 0) {
+            html += `<div style="margin-bottom:6px;"><span style="font-weight:bold; color:#555;">Searched:</span> <span style="font-style:italic;">"${metadata.webSearchQueries.join(', ')}"</span></div>`;
+        }
+        
+        if (metadata.groundingChunks && metadata.groundingChunks.length > 0) {
+            html += `<div style="font-weight:bold; color:#555; margin-bottom:4px;">Sources:</div>`;
+            html += `<div style="display:flex; flex-wrap:wrap; gap:6px;">`;
+            metadata.groundingChunks.forEach(chunk => {
+                if (chunk.web) {
+                    html += `
+                        <a href="${chunk.web.uri}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; background:#f0f4f9; color:#1a73e8; padding:4px 8px; border-radius:12px; text-decoration:none; font-size:11px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            <span class="material-symbols-outlined" style="font-size:12px;">open_in_new</span>
+                            <span>${chunk.web.title || chunk.web.uri}</span>
+                        </a>
+                    `;
+                }
+            });
+            html += `</div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    function appendTtsTriggerButton(msgId) {
+        const bubble = document.getElementById(msgId);
+        if (!bubble) return;
+
+        const textContainer = bubble.querySelector(".message-content");
+        if (!textContainer) return;
+
+        const ttsBtn = document.createElement("button");
+        ttsBtn.style.cssText = "display:flex; align-items:center; gap:4px; font-size:10px; color:#5f6368; background:none; border:none; cursor:pointer; margin-top:6px; padding:0; font-weight:bold;";
+        ttsBtn.onclick = () => readAloud(`stream-content-${msgId}`);
+        ttsBtn.innerHTML = `
+            <span class="material-symbols-outlined" style="font-size:14px;">volume_up</span>
+            <span>Read aloud</span>
+        `;
+        textContainer.appendChild(ttsBtn);
+    }
+
+    // Setup grounding XML block compiler
+    async function executeAutoModeRAG(queryText, rawScrapedJson, loaderId) {
+        if (window.AndroidInterface) {
+            window.AndroidInterface.nativeLog("Starting AutoMode RAG context extraction...", "native");
+        }
+        let liveContextString = "";
+        try {
+            const items = JSON.parse(rawScrapedJson);
+            if (Array.isArray(items)) {
+                const top2 = items.slice(0, 2);
+                top2.forEach(item => {
+                    const isUniversal = (item.type === "universal_web");
+                    const url = isUniversal ? (item.metadata?.url || "N/A") : `https://www.amazon.in/dp/${item.specifications?.asin || 'N/A'}`;
+                    const title = isUniversal ? (item.metadata?.title || "Universal Article") : `${item.specifications?.brand || ''} ${item.specifications?.model || ''}`;
+                    const contentText = isUniversal ? (item.content || "") : JSON.stringify(item.specifications);
+
+                    liveContextString += `[START OF LIVE WEB CONTEXT]\n`;
+                    liveContextString += `Source URL: ${url}\n`;
+                    liveContextString += `Page Title: ${title}\n`;
+                    liveContextString += `Scraped Content: ${contentText}\n`;
+                    liveContextString += `[END OF LIVE WEB CONTEXT]\n\n`;
+                });
+            }
+        } catch (e) {
+            liveContextString = `[START OF LIVE WEB CONTEXT]\nScraped Content: ${rawScrapedJson}\n[END OF LIVE WEB CONTEXT]\n`;
+        }
+
+        let systemPrompt = "You are an up-to-date, conversational AI assistant equipped with real-time web-crawling capabilities.\n";
+        systemPrompt += "You have been provided with fresh, crawled web documents matching the user's current query. You must prioritize this provided web data to construct your response.\n\n";
+
+        let groundingPrompt = systemPrompt + liveContextString;
+
+        groundingPrompt += "=== BEHAVIORAL AND FORMATTING CONSTRAINTS ===\n";
+        groundingPrompt += "- The \"No Technical Jargon\" Rule: You must NEVER mention technical or developmental terms under any circumstances, including but not limited to: \"raw JSON\", \"scraped databases\", \"API payloads\", \"web crawlers\", \"HTML tags\", \"Nostr events\", or \"relays\".\n";
+        groundingPrompt += "- The \"Natural Voice\" Rule: You must speak naturally, directly, and conversationally, as if you naturally possess this live, up-to-date knowledge.\n";
+        groundingPrompt += "- The \"Complete Answer Requirement\": You must construct a complete, detailed, and direct answer using the provided crawled web context. You must never output refusal phrases such as 'I could not find the answer', 'the context does not say', 'the data is missing', or 'I don't know'. Use the provided specifications and text to answer the query fully and directly.\n";
+
+        const targetLanguage = localStorage.getItem("puter_target_language") || "";
+        const nativeLanguage = getNativeLanguageName(targetLanguage);
+        if (targetLanguage) {
+            groundingPrompt += `- The Language Constraint:\n  IMPORTANT:\n  ALWAYS respond ONLY in ${nativeLanguage || targetLanguage}.\n  NEVER use English.\n  Even if user speaks English, translate internally and answer only in ${nativeLanguage || targetLanguage}.\n  Do not transliterate. Write strictly in the native script characters of the language.\n`;
+        }
+        groundingPrompt += "\n";
+
+        // --- PATHWAY ROUTING BRANCH: PUTER VS NATIVE GEMINI IN AUTO MODE ---
+        if (activeProvider === "Gemini") {
+            const modelId = globalSelectedModel;
+            const msgId = "gemini-" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+            
+            const contents = [{
+                role: "user",
+                parts: [{ text: `USER QUESTION: ${queryText}` }]
+            }];
+
+            const isAudioModel = modelId.includes("tts") || (globalModelObject && globalModelObject.categories && globalModelObject.categories.includes("audio"));
+            const isDedicatedTts = modelId.includes("tts");
+            const supportsStreaming = !isAudioModel && !modelId.includes("live-preview") && isStreaming;
+
+            const payload = { contents: contents };
+
+            if (!isDedicatedTts) {
+                payload.systemInstruction = { parts: [{ text: groundingPrompt }] };
+            } else {
+                contents[0].parts.unshift({ text: groundingPrompt });
+            }
+
+            const payloadJson = JSON.stringify(payload);
+
+            const loader = document.getElementById('ecgLoader');
+            if (loader) loader.style.display = 'none';
+
+            setupGeminiCallbacks(queryText, msgId, supportsStreaming);
+
+            try {
+                if (window.AndroidInterface && window.AndroidInterface.executeGeminiCall) {
+                    window.AndroidInterface.executeGeminiCall(modelId, payloadJson, supportsStreaming, msgId);
+                } else {
+                    throw new Error("Android Interface native bridge not available.");
+                }
+            } catch (e) {
+                const targetSpan = document.getElementById(`stream-content-${msgId}`);
+                if (targetSpan) targetSpan.innerHTML = "RAG Synthesize error: " + e.message;
+            }
+            return;
+        }
+
+        let finalUserQueryText = `USER QUESTION: ${queryText}`;
+        if (targetLanguage) {
+            const scriptName = nativeLanguage || targetLanguage;
+            finalUserQueryText += `\n\n[System Rule: Respond strictly in ${scriptName} script]`;
+        }
+
+        const messagesArray = [
+            { role: "system", content: groundingPrompt },
+            { role: "user", content: finalUserQueryText }
+        ];
+
+        const activeModel = globalSelectedModel;
+        try {
+            updateLoaderCardText(loaderId, "AI is synthesizing web findings...");
+
+            if (window.AndroidInterface) {
+                window.AndroidInterface.nativeLog("Delivering grounding payload to Puter completions pipeline. Model: " + activeModel, "native");
+            }
+
+            const streamResp = await puter.ai.chat(messagesArray, {
+                model: activeModel,
+                stream: true
+            });
+
+            const loaderTextEl = document.getElementById(`loader-indicator-text-${loaderId}`);
+            if (loaderTextEl) loaderTextEl.remove();
+
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            let fullBotText = "";
+            for await (const chunk of streamResp) {
+                if (chunk.usage) { updateUsageUI(chunk.usage); continue; }
+                const chunkText = chunk?.text || chunk?.message?.content || "";
+                if (chunkText) {
+                    fullBotText += chunkText;
+                    targetSpan.innerHTML = marked.parse(fullBotText);
+                    document.querySelectorAll(`#stream-content-${loaderId} pre code:not(.hljs)`).forEach((block) => { hljs.highlightElement(block); });
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+            }
+
+            chatHistory.push({sender: "Bot", text: fullBotText, id: `msg-${loaderId}`, files: []});
+            localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+
+            if (isVoiceResponseActive && window.AndroidInterface) {
+                window.AndroidInterface.speak(fullBotText);
+            }
+        } catch (completedError) {
+            console.error("index.html: Grounding prompt execution failure.", completedError);
+            if (window.AndroidInterface && window.AndroidInterface.logHtmlGlitch) {
+                window.AndroidInterface.logHtmlGlitch("index.html", "RAG execution failure: " + completedError.message);
+            }
+            const targetSpan = document.getElementById(`stream-content-${loaderId}`);
+            if (targetSpan) targetSpan.innerHTML = "RAG Synthesize error: " + completedError.message;
+        }
+    }
+
+    // --- HELPER FUNCTIONS ---
+
+    function saveCustom() {
+      customInstruction = document.getElementById('customInput').value;
+      localStorage.setItem('puter_custom_ins', customInstruction);
+      console.log("Custom Instruction Saved.");
+      closeModal('customModal');
+    }
+
+    // Toggle logic remains standard
+    function toggleSettingsUI() {
+      const bar = document.getElementById('settingsBar');
+      const btn = document.getElementById('toggleSettingsBtn');
+      if(bar.style.display === 'none') {
+        bar.style.display = 'block';
+        btn.textContent = "Hide Settings";
+      } else {
+        bar.style.display = 'none';
+        btn.textContent = "Show Settings";
+      }
+    }
+
+    /* --- REQUIREMENT #3: NEW SESSION FIX --- */
+    function newSession() {
+      // Create a new ID and reset UI without deleting data
+      currentSessionId = Date.now().toString();
+      localStorage.setItem('puter_current_session_id', currentSessionId);
+
+      /* USAGE TOTALS ARE NOW PERSISTENT - REMOVED RESET FROM HERE PER REQUEST */
+
+      document.getElementById('puterChatLog').innerHTML = '';
+      chatHistory = [];
+      clearFiles();
+
+      // Clear active native background tabs conceptually
+      if (window.AndroidInterface && window.AndroidInterface.clearBackgroundTabs) {
+          window.AndroidInterface.clearBackgroundTabs();
+      }
+
+      console.log("New Session ID generated: " + currentSessionId);
+      if (window.AndroidInterface && window.AndroidInterface.showToast) {
+          window.AndroidInterface.showToast("New Session Started");
+      } else {
+          alert("New Session Started");
+      }
+    }
+
+    // Specification 1: Language Target Key Input hydration
+    function handleLanguageInput(value) {
+        const cleanedValue = value.trim();
+        if (cleanedValue) {
+            localStorage.setItem("puter_target_language", cleanedValue);
+            console.log("Saved language:", cleanedValue);
+            if (window.AndroidInterface && window.AndroidInterface.showToast) {
+                window.AndroidInterface.showToast("Reply language set to " + cleanedValue);
+            }
+        } else {
+            localStorage.removeItem("puter_target_language");
+        }
+    }
+
+    // =========================================================================
+    // NEW: EXPANDABLE GEMINI CONFIGURATION DRAWER LOGIC
+    // =========================================================================
+
+    function toggleGeminiDrawer() {
+        const drawer = document.getElementById("geminiSettingsDrawer");
+        const chevron = document.getElementById("geminiDrawerChevron");
+        if (drawer.style.display === "none" || drawer.style.display === "") {
+            drawer.style.display = "flex";
+            chevron.textContent = "expand_less";
+        } else {
+            drawer.style.display = "none";
+            chevron.textContent = "expand_more";
+        }
+    }
+
+    function handleGeminiApiKeyChange(value) {
+        if (window.AndroidInterface && window.AndroidInterface.saveGeminiApiKey) {
+            window.AndroidInterface.saveGeminiApiKey(value.trim());
+        }
+        localStorage.setItem("gemini_user_api_key", value.trim());
+    }
+
+    function handleGeminiStreamToggle(checked) {
+        if (window.AndroidInterface && window.AndroidInterface.setGeminiStreaming) {
+            window.AndroidInterface.setGeminiStreaming(checked);
+        }
+    }
+
+    function handleGeminiGroundingChange(value) {
+        if (window.AndroidInterface && window.AndroidInterface.setGeminiGrounding) {
+            window.AndroidInterface.setGeminiGrounding(value);
+        }
+    }
+
+    function handleGeminiVoiceChange(value) {
+        localStorage.setItem("gemini_user_voice", value);
+        if (window.AndroidInterface && window.AndroidInterface.saveGeminiVoice) {
+            window.AndroidInterface.saveGeminiVoice(value);
+        }
+    }
+
+    function syncGeminiUIState() {
+        const divider = document.getElementById("geminiMenuDivider");
+        const header = document.getElementById("geminiToggleDrawerHeader");
+        const drawer = document.getElementById("geminiSettingsDrawer");
+        
+        if (activeProvider === "Gemini") {
+            if (divider) divider.style.display = "block";
+            if (header) header.style.display = "flex";
+            if (window.AndroidInterface) {
+                const apiKey = window.AndroidInterface.getGeminiApiKey ? window.AndroidInterface.getGeminiApiKey() : localStorage.getItem("gemini_user_api_key");
+                document.getElementById("geminiApiKeyInput").value = apiKey || "";
+                
+                const stream = window.AndroidInterface.getGeminiStreaming ? window.AndroidInterface.getGeminiStreaming() : true;
+                document.getElementById("geminiStreamToggle").checked = stream;
+                
+                const grounding = window.AndroidInterface.getGeminiGrounding ? window.AndroidInterface.getGeminiGrounding() : "none";
+                document.getElementById("geminiGroundingSelect").value = grounding || "none";
+
+                const voice = window.AndroidInterface.getGeminiVoice ? window.AndroidInterface.getGeminiVoice() : (localStorage.getItem("gemini_user_voice") || "Puck");
+                document.getElementById("geminiVoiceSelect").value = voice;
+            }
+        } else {
+            if (divider) divider.style.display = "none";
+            if (header) header.style.display = "none";
+            if (drawer) drawer.style.display = "none";
+        }
+    }
+
+    /* --- ADOPTED PCM-WAV & RAW ARRAY BUFFER PIPELINE UTILITIES --- */
+    function base64ToArrayBuffer(base64) {
+        const binaryString = window.atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    function pcmToWav(pcmBuffer, sampleRate, channels, bitsPerSample) {
+        const pcmLength = pcmBuffer.byteLength;
+        const header = new ArrayBuffer(44);
+        const view = new DataView(header);
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        writeString(view, 0, "RIFF");
+        view.setUint32(4, 36 + pcmLength, true);
+        writeString(view, 8, "WAVE");
+        writeString(view, 12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, channels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, (sampleRate * channels * bitsPerSample) / 8, true);
+        view.setUint16(32, (channels * bitsPerSample) / 8, true);
+        view.setUint16(34, bitsPerSample, true);
+        writeString(view, 36, "data");
+        view.setUint32(40, pcmLength, true);
+
+        const wavBytes = new Uint8Array(44 + pcmLength);
+        wavBytes.set(new Uint8Array(header), 0);
+        wavBytes.set(new Uint8Array(pcmBuffer), 44);
+
+        return wavBytes.buffer;
+    }
+
+    function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+
+    /* --- ADOPTED WEBSOCKET LIVE AUDIO ROUTING PIPELINES --- */
+    function connectWebSocketLive(apiKey, modelId, voiceName, useSearch) {
+        disconnectWebSocketLive();
+        
+        if (window.AndroidInterface) {
+            window.AndroidInterface.logDiagnostic("Attempting WebSockets Live API channel connection. Model: " + modelId, "NETWORK");
+        }
+        
+        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
+        
+        try {
+            liveWs = new WebSocket(url);
+        } catch (err) {
+            console.error("Live WebSocket creation exception: ", err);
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebSockets construction threw: " + err.message, "ERROR");
+            }
+            return;
+        }
+        
+        liveWs.onopen = () => {
+            const setupMessage = {
+                setup: {
+                    model: "models/" + modelId,
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: {
+                                    voiceName: voiceName
+                                }
+                            }
+                        }
+                    },
+                    tools: useSearch ? [{ googleSearch: {} }] : undefined
+                }
+            };
+            liveWs.send(JSON.stringify(setupMessage));
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("Live session handshake setup payload sent.", "NETWORK");
+            }
+        };
+        
+        let currentLiveBotSpan = null;
+        
+        liveWs.onmessage = async (event) => {
+            try {
+                let payload;
+                if (event.data instanceof Blob) {
+                    const textData = await event.data.text();
+                    payload = JSON.parse(textData);
+                } else {
+                    payload = JSON.parse(event.data);
+                }
+                
+                if (payload.setupComplete) {
+                    if (window.AndroidInterface) {
+                        window.AndroidInterface.logDiagnostic("Handshake confirmed. Initializing capture pipeline...", "NETWORK");
+                        // Notify Android to cleanly release native SpeechRecognizer locks
+                        if (window.AndroidInterface.setLiveSocketActive) {
+                            window.AndroidInterface.setLiveSocketActive(true);
+                        }
+                    }
+                    initMicrophoneCaptureLive();
+                    
+                    // Dispatch any stored/pending query that initiated the connection
+                    if (pendingLiveQuery) {
+                        sendLiveTextQuery(pendingLiveQuery.text, pendingLiveQuery.files);
+                        pendingLiveQuery = null;
+                    }
+                    return;
+                }
+                
+                if (payload.error) {
+                    console.error("Live server error returned:", payload.error);
+                    if (window.AndroidInterface) {
+                        window.AndroidInterface.logDiagnostic("Live server returned error: " + JSON.stringify(payload.error), "ERROR");
+                    }
+                    disconnectWebSocketLive();
+                    return;
+                }
+                
+                if (payload.serverContent) {
+                    const content = payload.serverContent;
+                    
+                    // Unified Live Barge-in Interruption Hook
+                    if (content.interrupted) {
+                        if (window.AndroidInterface) {
+                            window.AndroidInterface.logDiagnostic("⚡ Interruption signal received. Halting audio buffers.", "BARGE_IN");
+                        }
+                        clearPlaybackQueueLive();
+                        if (currentLiveBotSpan) {
+                            currentLiveBotSpan.innerHTML += " <i>[Interrupted]</i>";
+                        }
+                        currentLiveBotSpan = null;
+                    }
+                    
+                    if (content.modelTurn && content.modelTurn.parts) {
+                        const msgId = "live-msg-" + Date.now();
+                        if (!currentLiveBotSpan) {
+                            const log = document.getElementById('puterChatLog');
+                            const div = document.createElement('div');
+                            div.className = "message bot-message";
+                            div.id = msgId;
+                            div.innerHTML = `<div class="message-content"><b>Bot:</b><br><span id="live-span-${msgId}"></span></div>`;
+                            log.appendChild(div);
+                            currentLiveBotSpan = document.getElementById(`live-span-${msgId}`);
+                        }
+                        
+                        for (const part of content.modelTurn.parts) {
+                            if (part.text) {
+                                currentLiveBotSpan.innerText += part.text;
+                                chatHistory.push({sender: "Bot", text: part.text, id: msgId, files: []});
+                                localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
+                            }
+                            if (part.inlineData && part.inlineData.data) {
+                                scheduleAudioChunkPlayLive(part.inlineData.data);
+                            }
+                        }
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                    
+                    if (content.turnComplete) {
+                        currentLiveBotSpan = null;
+                    }
+                    
+                    if (content.inputTranscription && content.inputTranscription.text) {
+                        appendChat("User", content.inputTranscription.text, false, []);
+                        // Forward user transcriptions dynamically to native VoiceAgentActivity
+                        if (window.AndroidInterface && window.AndroidInterface.broadcastUserTranscript) {
+                            window.AndroidInterface.broadcastUserTranscript(content.inputTranscription.text);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Live packet processing exception: ", e);
+            }
+        };
+        
+        liveWs.onclose = (event) => {
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebSocket closed. Code: " + event.code + " | Reason: " + (event.reason || "None"), "NETWORK");
+            }
+            disconnectWebSocketLive();
+        };
+        
+        liveWs.onerror = (err) => {
+            console.error("Live WebSockets channel error: ", err);
+            if (window.AndroidInterface) {
+                window.AndroidInterface.logDiagnostic("WebSocket protocol error observed.", "ERROR");
+            }
+        };
+    }
 
     async function initMicrophoneCaptureLive() {
         try {
-            console.log("[MIC] Starting microphone acquisition...");
-            
-            // Check if audio devices are available
-            try {
-              const devices = await navigator.mediaDevices.enumerateDevices();
-              const audioInputs = devices.filter(d => d.kind === 'audioinput');
-              console.log(`[MIC] Found ${audioInputs.length} audio input device(s)`);
-              
-              if (audioInputs.length === 0) {
-                console.warn("[MIC] WARNING: No audio input devices detected!");
-              }
-            } catch (enumErr) {
-              console.warn("[MIC] Could not enumerate devices:", enumErr.message);
-            }
-
-            // Request microphone with detailed constraints
-            const constraints = {
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                sampleRate: 16000
-              }
-            };
-
-            console.log("[MIC] Requesting microphone with constraints:", JSON.stringify(constraints));
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             liveMicStream = stream;
-            console.log("[MIC] ✓ Microphone stream acquired successfully");
-            console.log("[MIC] Stream tracks:", stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, state: t.readyState })));
             
-            // Setup audio context
             liveAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            console.log("[MIC] Audio context created. Sample rate:", liveAudioContext.sampleRate);
-            
             const source = liveAudioContext.createMediaStreamSource(stream);
             
             liveAudioProcessor = liveAudioContext.createScriptProcessor(2048, 1, 1);
@@ -281,53 +3437,173 @@
             
             source.connect(liveAudioProcessor);
             liveAudioProcessor.connect(liveAudioContext.destination);
-            
             if (window.AndroidInterface) {
                 window.AndroidInterface.logDiagnostic("WebRTC microphone capture active.", "HARDWARE");
             }
-            console.log("[MIC] ✓ Microphone capture pipeline initialized successfully");
-            
         } catch (err) {
-            // ENHANCED ERROR DIAGNOSTICS
-            console.error("[MIC] ✗ Microphone acquisition failed");
-            
-            const diagnostic = MicrophoneDiagnostics.analyzeGetUserMediaError(err);
-            MicrophoneDiagnostics.logDiagnostic(diagnostic);
-            
-            // Cleanup any partial resources
-            if (liveAudioContext && liveAudioContext.state !== 'closed') {
-                try {
-                  liveAudioContext.close();
-                  console.log("[MIC] Audio context closed");
-                } catch (e) {
-                  console.warn("[MIC] Error closing audio context:", e.message);
-                }
-            }
-            
-            if (liveMicStream) {
-                liveMicStream.getTracks().forEach(track => {
-                    track.stop();
-                    console.log("[MIC] Stopped stream track:", track.kind);
-                });
-                liveMicStream = null;
-            }
-            
+            console.error("Live microphone acquisition failed: ", err);
             if (window.AndroidInterface) {
-                const userMsg = `Microphone Error: ${err.name} - ${err.message}. ` +
-                               `Check if:\n1) Another app is using mic\n2) Microphone permission is granted\n3) Microphone is connected`;
-                window.AndroidInterface.logDiagnostic(userMsg, "WEBRTC_ERROR");
+                window.AndroidInterface.logDiagnostic("WebRTC microphone acquisition failed: " + err.name + " (" + err.message + "). Bypassing microphone stream.", "WEBRTC");
             }
-            
-            // IMPORTANT: Do NOT disconnect WebSocket - fall back to native capture
-            console.log("[MIC] Falling back to native speech capture");
+            // MODIFIED: Do not call disconnectWebSocketLive() on WebRTC microphone errors! 
+            // In hybrid mode, the native VoiceAgentActivity captures the user speech natively 
+            // and forwards the transcript frame via text. Bypassing mic streaming prevents 
+            // the WebSocket from being terminated early, allowing RAG and TTS responses.
         }
     }
 
-    // Make functions globally accessible
-    window.initMicrophoneCaptureLive = initMicrophoneCaptureLive;
-    window.TTSStateManager = TTSStateManager;
-    window.MicrophoneDiagnostics = MicrophoneDiagnostics;
-  </script>
+    function sendLiveTextQuery(promptText, files) {
+        if (!liveWs || liveWs.readyState !== WebSocket.OPEN) return;
+        const turnParts = [];
+        if (promptText) {
+            turnParts.push({ text: promptText });
+        }
+        if (files && files.length > 0) {
+            files.forEach(f => {
+                if (f.type.startsWith('image/')) {
+                    const match = f.data.match(/^data:([^;]+);base64,(.+)$/);
+                    if (match) {
+                        turnParts.push({
+                            inlineData: {
+                                mimeType: match[1],
+                                data: match[2]
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        const clientContentMsg = {
+            clientContent: {
+                turns: [{
+                    role: "user",
+                    parts: turnParts
+                }],
+                turnComplete: true
+            }
+        };
+        liveWs.send(JSON.stringify(clientContentMsg));
+        if (window.AndroidInterface) {
+            window.AndroidInterface.nativeLog("Dispatched live text query frame over WebSocket.", "native");
+            window.AndroidInterface.logDiagnostic("Transmitting live text query frame: \"" + promptText.substring(0, Math.min(promptText.length, 30)) + "...\"", "QUERY");
+        }
+    }
 
+    function scheduleAudioChunkPlayLive(base64Data) {
+        try {
+            if (!livePlayCtx) {
+                livePlayCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+            }
+            
+            const rawBuffer = base64ToArrayBuffer(base64Data);
+            const int16Samples = new Int16Array(rawBuffer);
+            const float32Samples = new Float32Array(int16Samples.length);
+            
+            for (let i = 0; i < int16Samples.length; i++) {
+                float32Samples[i] = int16Samples[i] / 32768.0;
+            }
+            
+            const audioBuffer = livePlayCtx.createBuffer(1, float32Samples.length, 24000);
+            audioBuffer.copyToChannel(float32Samples, 0);
+            
+            const sourceNode = livePlayCtx.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.connect(livePlayCtx.destination);
+            
+            const currentTime = livePlayCtx.currentTime;
+            if (nextPlayTime < currentTime) {
+                nextPlayTime = currentTime + 0.05;
+            }
+            
+            sourceNode.start(nextPlayTime);
+            activeSources.push({
+                source: sourceNode,
+                endTime: nextPlayTime + audioBuffer.duration
+            });
+            
+            nextPlayTime += audioBuffer.duration;
+            activeSources = activeSources.filter(item => item.endTime > currentTime);
+        } catch (err) {
+            console.error("Live queue scheduling exception: ", err);
+        }
+    }
+
+    function disconnectWebSocketLive() {
+        if (window.AndroidInterface && window.AndroidInterface.setLiveSocketActive) {
+            window.AndroidInterface.setLiveSocketActive(false);
+        }
+        if (liveMicStream) {
+            try {
+                liveMicStream.getTracks().forEach(track => track.stop());
+            } catch(e) {}
+            liveMicStream = null;
+        }
+        if (liveAudioProcessor) {
+            try {
+                liveAudioProcessor.disconnect();
+            } catch(e) {}
+            liveAudioProcessor = null;
+        }
+        if (liveAudioContext) {
+            liveAudioContext.close().catch(() => {});
+            liveAudioContext = null;
+        }
+        clearPlaybackQueueLive();
+        if (livePlayCtx) {
+            livePlayCtx.close().catch(() => {});
+            livePlayCtx = null;
+        }
+        if (liveWs) {
+            if (liveWs.readyState === WebSocket.OPEN || liveWs.readyState === WebSocket.CONNECTING) {
+                liveWs.close();
+            }
+            liveWs = null;
+        }
+    }
+
+    function clearPlaybackQueueLive() {
+        activeSources.forEach((item) => {
+            try {
+                item.source.stop();
+            } catch (e) {}
+        });
+        activeSources = [];
+        nextPlayTime = 0;
+    }
+
+    // Execute immediately on load
+    window.onload = () => {
+        console.log("Page Lifecycle: ONLOAD on Secure Origin");
+
+        // FIX: Load Models IMMEDIATELY before waiting for SDK
+        loadModels();
+
+        syncAuthSession();
+        loadSavedHistory();
+        loadNostrIdentityInUI(); // Load keys dynamically on initial layout render
+        document.getElementById('customInput').value = customInstruction;
+
+        // Specification 1: Language target key input hydration
+        const savedLanguageSetting = localStorage.getItem("puter_target_language") || "";
+        const languageInputContainer = document.getElementById("modelLanguageInput");
+        if (languageInputContainer) {
+            languageInputContainer.value = savedLanguageSetting;
+        }
+
+        /* INITIALIZE PERSISTENT USAGE DISPLAY */
+        document.getElementById('totalTokenVal').textContent = `Global Total: ${sessionTotalTokens} tokens`;
+        document.getElementById('totalCreditVal').textContent = `Global Cost: $${sessionTotalCredits.toFixed(4)}`;
+
+        if (typeof puter !== 'undefined') {
+            console.log("Puter SDK detected. Waiting for ready signal...");
+            puter.ready(() => {
+                console.log("Puter SDK Ready. Finalizing Session UI...");
+                updateAuthUI();
+            });
+        } else {
+            console.error("CRITICAL: Puter.js SDK failed to load on this origin!");
+        }
+    };
+  </script>
 </body>
 </html>
