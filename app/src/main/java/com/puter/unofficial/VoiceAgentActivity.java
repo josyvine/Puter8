@@ -80,6 +80,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
         // MODIFIED: Initialize dynamic background console logging HUD
         setupDiagnosticLogOverlay();
         WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity: Immersive dashboard session initialized.");
+        WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity onCreate: Initializing native managers. Hardware context: " + this.toString());
 
         // Click status text directly to reopen or show the diagnostic logs if minimized
         tvStatus.setOnClickListener(v -> {
@@ -90,13 +91,16 @@ public class VoiceAgentActivity extends AppCompatActivity {
         });
 
         // 1. Initialize Native TTS
+        WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity onCreate: Initializing native TextToSpeech engine...");
         tts = new TextToSpeech(this, status -> {
+            WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity onCreate: TTS Initialization callback returned status=" + status);
             if (status == TextToSUCCESS()) {
                 tts.setLanguage(Locale.US);
                 setupTtsListener();
                 
                 // Only start native microphone listening if there isn't an active WebSockets Live session.
                 // If a Live session is already running, the WebView's WebRTC stream holds the lock.
+                WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity onCreate: TTS Engine ready. Checking active Live socket state: " + WebAppInterface.isLiveSocketActive);
                 startListening();
             } else {
                 WebAppInterface.DiagnosticLogger.log("[FATAL ERROR] Native TTS initialization failed with code: " + status);
@@ -104,6 +108,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
         });
 
         // 2. Initialize Native STT
+        WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity onCreate: Constructing native RecognizerIntent.");
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
@@ -117,8 +122,14 @@ public class VoiceAgentActivity extends AppCompatActivity {
         setupAiResponseReceiver();
 
         // UI Listeners
-        fabMic.setOnClickListener(v -> toggleListening());
-        btnClose.setOnClickListener(v -> finish());
+        fabMic.setOnClickListener(v -> {
+            WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity: Manual microphone FAB trigger clicked by user.");
+            toggleListening();
+        });
+        btnClose.setOnClickListener(v -> {
+            WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity: Closing voice dashboard via exit button.");
+            finish();
+        });
     }
 
     private int TextToSUCCESS() {
@@ -211,13 +222,14 @@ public class VoiceAgentActivity extends AppCompatActivity {
     }
 
     private void setupTtsListener() {
+        if (tts == null) return;
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
             @Override
             public void onStart(String utteranceId) {
                 isAIspeaking = true;
                 isAiSpeakingOrPlaying = true; // State-gate: AI native TTS playback active
                 runOnUiThread(() -> tvStatus.setText("Puter is speaking..."));
-                WebAppInterface.DiagnosticLogger.log("[TTS] Speaking AI response sequence initialized.");
+                WebAppInterface.DiagnosticLogger.log("[TTS] Speaking AI response sequence initialized. UtteranceId: " + utteranceId);
 
                 // REQUIREMENT #2: Start listening IMMEDIATELY when AI starts talking
                 // This allows the user to interrupt (Barge-in) at any time.
@@ -228,7 +240,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
             public void onDone(String utteranceId) {
                 isAIspeaking = false;
                 isAiSpeakingOrPlaying = false; // State-gate: AI native TTS playback finished
-                WebAppInterface.DiagnosticLogger.log("[TTS] Speech playback successfully finalized.");
+                WebAppInterface.DiagnosticLogger.log("[TTS] Speech playback successfully finalized. UtteranceId: " + utteranceId);
                 // CONTINUOUS FLOW: Re-open mic to wait for next user command
                 runOnUiThread(() -> startListening());
             }
@@ -237,7 +249,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
             public void onError(String utteranceId) {
                 isAIspeaking = false;
                 isAiSpeakingOrPlaying = false; // State-gate: native TTS playback completed with error
-                WebAppInterface.DiagnosticLogger.log("[ERROR] Native TTS playback error occurred.");
+                WebAppInterface.DiagnosticLogger.log("[ERROR] Native TTS playback error occurred. UtteranceId: " + utteranceId);
                 runOnUiThread(() -> startListening());
             }
         });
@@ -256,13 +268,13 @@ public class VoiceAgentActivity extends AppCompatActivity {
 
             @Override
             public void onBeginningOfSpeech() {
-                WebAppInterface.DiagnosticLogger.log("[STT] Voice activity detected.");
+                WebAppInterface.DiagnosticLogger.log("[STT] Voice activity / beginning of speech detected. State check -> isAiSpeakingOrPlaying: " + isAiSpeakingOrPlaying);
                 
                 // BARGE-IN RESOLUTION GATING: Only execute the reset and WebView stop sequence 
                 // if the AI is actively speaking or playing audio chunks (Native TTS or Web Audio).
                 if (isAiSpeakingOrPlaying) {
                     Log.d(TAG, "Barge-in: Voice detected during active AI playback - performing hardware reset.");
-                    WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Speech detected while AI speaking. Silencing output.");
+                    WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Speech detected while AI speaking. Silencing outputs & triggering hardware reset...");
 
                     if (tts != null) {
                         tts.stop();
@@ -280,12 +292,24 @@ public class VoiceAgentActivity extends AppCompatActivity {
                      * This prevents ERROR_CLIENT (5) ghost-locks that kill the microphone after barge-ins.
                      */
                     hardwareHandler.post(() -> {
+                        WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Executing physical native STT release loop.");
                         if (speechRecognizer != null) {
-                            try { speechRecognizer.cancel(); } catch (Exception e) {}
-                            try { speechRecognizer.destroy(); } catch (Exception e) {}
+                            try { 
+                                speechRecognizer.cancel(); 
+                                WebAppInterface.DiagnosticLogger.log("[BARGE_IN] speechRecognizer.cancel() invoked.");
+                            } catch (Exception e) {
+                                WebAppInterface.DiagnosticLogger.log("[BARGE_IN] cancel() error: " + e.getMessage());
+                            }
+                            try { 
+                                speechRecognizer.destroy(); 
+                                WebAppInterface.DiagnosticLogger.log("[BARGE_IN] speechRecognizer.destroy() invoked.");
+                            } catch (Exception e) {
+                                WebAppInterface.DiagnosticLogger.log("[BARGE_IN] destroy() error: " + e.getMessage());
+                            }
                             speechRecognizer = null;
                         }
                         isListening = false;
+                        WebAppInterface.DiagnosticLogger.log("[BARGE_IN] STT hardware fully destroyed. Scheduling re-init with 150ms buffer.");
                         hardwareHandler.postDelayed(() -> startListening(), 150); // Buffer for hardware unlock
                     });
                 } else {
@@ -303,7 +327,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
             @Override
             public void onEndOfSpeech() {
                 isListening = false;
-                WebAppInterface.DiagnosticLogger.log("[STT] User completed utterance.");
+                WebAppInterface.DiagnosticLogger.log("[STT] User completed utterance. onEndOfSpeech event triggered.");
             }
 
             @Override
@@ -323,23 +347,23 @@ public class VoiceAgentActivity extends AppCompatActivity {
 
                 switch (error) {
                     case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                        errorDescription = "ERROR_SPEECH_TIMEOUT";
+                        errorDescription = "ERROR_SPEECH_TIMEOUT (3)";
                         break;
                     case SpeechRecognizer.ERROR_NO_MATCH:
-                        errorDescription = "ERROR_NO_MATCH";
+                        errorDescription = "ERROR_NO_MATCH (7)";
                         break;
                     case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-                        errorDescription = "ERROR_RECOGNIZER_BUSY";
+                        errorDescription = "ERROR_RECOGNIZER_BUSY (8)";
                         break;
                     case SpeechRecognizer.ERROR_AUDIO:
-                        errorDescription = "ERROR_AUDIO_RECORD";
+                        errorDescription = "ERROR_AUDIO_RECORD (5)";
                         break;
                     case SpeechRecognizer.ERROR_CLIENT:
-                        errorDescription = "ERROR_CLIENT_SIDE";
+                        errorDescription = "ERROR_CLIENT_SIDE (5)";
                         // This error happens when cancel() is called. Restarting is mandatory.
                         break;
                     case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
-                        errorDescription = "ERROR_MIC_PERMISSIONS_DENIED";
+                        errorDescription = "ERROR_MIC_PERMISSIONS_DENIED (9)";
                         shouldAutoRestart = false; // Cannot recover from lack of permissions
                         break;
                     default:
@@ -347,15 +371,21 @@ public class VoiceAgentActivity extends AppCompatActivity {
                         break;
                 }
 
-                WebAppInterface.DiagnosticLogger.log("[STT ERROR] Mic receiver reported: " + errorDescription);
+                WebAppInterface.DiagnosticLogger.log("[STT ERROR] Mic receiver reported fault: " + errorDescription);
 
                 // REQUIREMENT: Deep Re-initialization on Errors to flush corrupted OS states
                 if (shouldAutoRestart) {
-                    WebAppInterface.DiagnosticLogger.log("[RECOVERY] Hard-Restarting microphone interface...");
+                    WebAppInterface.DiagnosticLogger.log("[RECOVERY] Hard-Restarting microphone interface to clear error " + error);
                     hardwareHandler.post(() -> {
                         if (speechRecognizer != null) {
-                            try { speechRecognizer.cancel(); } catch (Exception e) {}
-                            try { speechRecognizer.destroy(); } catch (Exception e) {}
+                            try { 
+                                speechRecognizer.cancel(); 
+                                WebAppInterface.DiagnosticLogger.log("[RECOVERY] speechRecognizer.cancel() invoked.");
+                            } catch (Exception e) {}
+                            try { 
+                                speechRecognizer.destroy(); 
+                                WebAppInterface.DiagnosticLogger.log("[RECOVERY] speechRecognizer.destroy() invoked.");
+                            } catch (Exception e) {}
                             speechRecognizer = null;
                         }
                         hardwareHandler.postDelayed(() -> startListening(), 150);
@@ -375,6 +405,8 @@ public class VoiceAgentActivity extends AppCompatActivity {
                     WebAppInterface.DiagnosticLogger.log("[STT] Transcription complete: \"" + userText + "\"");
                     // Send to MainActivity to hit Puter.js
                     processUserQuery(userText);
+                } else {
+                    WebAppInterface.DiagnosticLogger.log("[STT] onResults received but matches list was empty or NULL.");
                 }
             }
 
@@ -384,11 +416,12 @@ public class VoiceAgentActivity extends AppCompatActivity {
                 if (matches != null && !matches.isEmpty()) {
                     String partial = matches.get(0);
                     tvTranscript.setText(partial);
+                    WebAppInterface.DiagnosticLogger.log("[STT] Partial transcription captured: \"" + partial + "\"");
 
                     // Live Barge-in: Stop AI as soon as user starts speaking first few words
                     if (tts != null && tts.isSpeaking() && partial.trim().length() > 0) {
                         Log.d(TAG, "Partial voice detected - silencing AI.");
-                        WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Partial transcription captured. Muting TTS output.");
+                        WebAppInterface.DiagnosticLogger.log("[BARGE_IN] Partial transcription captured. Muting TTS output immediately.");
                         tts.stop();
                         isAIspeaking = false;
                         isAiSpeakingOrPlaying = false;
@@ -410,28 +443,40 @@ public class VoiceAgentActivity extends AppCompatActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
+                WebAppInterface.DiagnosticLogger.log("[INTENT] setupAiResponseReceiver received action: " + action);
+                
                 if ("PUTER_AI_RESPONSE".equals(action)) {
                     String aiText = intent.getStringExtra("RESPONSE_TEXT");
                     if (aiText != null) {
-                        WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_AI_RESPONSE payload. Synthesizing.");
+                        WebAppInterface.DiagnosticLogger.log("[INTENT] PUTER_AI_RESPONSE extracted. Content length: " + aiText.length());
                         isAiSpeakingOrPlaying = true; // State-gate: AI native TTS output starting
                         speakAIResponse(aiText);
+                    } else {
+                        WebAppInterface.DiagnosticLogger.log("[INTENT WARNING] PUTER_AI_RESPONSE content extra parameter was NULL.");
                     }
                 } else if ("PUTER_START_LISTENING".equals(action)) {
-                    WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_START_LISTENING. Restarting native microphone.");
+                    WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_START_LISTENING. Evaluating mic allocation...");
                     isAiSpeakingOrPlaying = false; // State-gate: AI speaking sequence completed
                     runOnUiThread(() -> {
                         // Only perform dynamic hardware resets if the WebView WebRTC capture is NOT active
+                        WebAppInterface.DiagnosticLogger.log("[INTENT PUTER_START_LISTENING] checking isLiveSocketActive: " + WebAppInterface.isLiveSocketActive);
                         if (!WebAppInterface.isLiveSocketActive) {
                             if (speechRecognizer != null) {
-                                try { speechRecognizer.cancel(); } catch (Exception e) {}
-                                try { speechRecognizer.destroy(); } catch (Exception e) {}
+                                try { 
+                                    speechRecognizer.cancel(); 
+                                    WebAppInterface.DiagnosticLogger.log("[INTENT PUTER_START_LISTENING] Cancelled existing SpeechRecognizer.");
+                                } catch (Exception e) {}
+                                try { 
+                                    speechRecognizer.destroy(); 
+                                    WebAppInterface.DiagnosticLogger.log("[INTENT PUTER_START_LISTENING] Destroyed existing SpeechRecognizer.");
+                                } catch (Exception e) {}
                                 speechRecognizer = null;
                             }
                             isListening = false;
                             hardwareHandler.postDelayed(() -> startListening(), 100);
                         } else {
                             // If WebSockets Live API is handling the mic, we simply transition the status back to Ready
+                            WebAppInterface.DiagnosticLogger.log("[INTENT PUTER_START_LISTENING] Live WebSockets active. Bypassing native mic re-initialization.");
                             tvStatus.setText("Listening...");
                         }
                     });
@@ -441,8 +486,12 @@ public class VoiceAgentActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         tvStatus.setText("Puter is speaking...");
                         // Only close the native hardware STT if WebRTC is not active (to avoid double locks)
+                        WebAppInterface.DiagnosticLogger.log("[INTENT PUTER_PAUSE_LISTENING] checking isLiveSocketActive: " + WebAppInterface.isLiveSocketActive);
                         if (!WebAppInterface.isLiveSocketActive && speechRecognizer != null) {
-                            try { speechRecognizer.cancel(); } catch (Exception e) {}
+                            try { 
+                                speechRecognizer.cancel(); 
+                                WebAppInterface.DiagnosticLogger.log("[INTENT PUTER_PAUSE_LISTENING] Cancelled SpeechRecognizer for pause request.");
+                            } catch (Exception e) {}
                             isListening = false;
                         }
                     });
@@ -453,10 +502,20 @@ public class VoiceAgentActivity extends AppCompatActivity {
                         if (active) {
                             // Live WebSocket connection established. Completely shutdown and release the native 
                             // SpeechRecognizer with layered teardown (Fix 2) to free the hardware microphone lock.
+                            WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] active=true. Initiating total native SpeechRecognizer destruction...");
                             if (speechRecognizer != null) {
-                                try { speechRecognizer.stopListening(); } catch (Exception ignored) {}
-                                try { speechRecognizer.cancel(); } catch (Exception ignored) {}
-                                try { speechRecognizer.destroy(); } catch (Exception ignored) {}
+                                try { 
+                                    speechRecognizer.stopListening(); 
+                                    WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] speechRecognizer.stopListening() executed.");
+                                } catch (Exception ignored) {}
+                                try { 
+                                    speechRecognizer.cancel(); 
+                                    WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] speechRecognizer.cancel() executed.");
+                                } catch (Exception ignored) {}
+                                try { 
+                                    speechRecognizer.destroy(); 
+                                    WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] speechRecognizer.destroy() executed.");
+                                } catch (Exception ignored) {}
                                 speechRecognizer = null;
                             }
                             isListening = false;
@@ -464,13 +523,14 @@ public class VoiceAgentActivity extends AppCompatActivity {
                             WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] Native SpeechRecognizer fully released for WebRTC handoff.");
                         } else {
                             // WebSocket closed. Re-initialize and restore native microphone listening
+                            WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] active=false. Restoring native SpeechRecognizer listening.");
                             startListening();
                         }
                     });
                 } else if ("PUTER_USER_TRANSCRIPT".equals(action)) {
                     String text = intent.getStringExtra("TEXT");
                     if (text != null) {
-                        WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_USER_TRANSCRIPT: " + text);
+                        WebAppInterface.DiagnosticLogger.log("[INTENT] Received PUTER_USER_TRANSCRIPT. Transcript: " + text);
                         runOnUiThread(() -> {
                             tvTranscript.setText(text);
                             tvStatus.setText("Puter is thinking...");
@@ -492,6 +552,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
         } else {
             registerReceiver(aiResponseReceiver, filter);
         }
+        WebAppInterface.DiagnosticLogger.log("setupAiResponseReceiver: Receiver registered successfully.");
     }
 
     /**
@@ -505,15 +566,21 @@ public class VoiceAgentActivity extends AppCompatActivity {
      */
     private void processUserQuery(final String text) {
         runOnUiThread(() -> tvStatus.setText("Puter is thinking..."));
-        WebAppInterface.DiagnosticLogger.log("[DISPATCH] Forwarding user query text to local web client.");
+        WebAppInterface.DiagnosticLogger.log("[DISPATCH] Forwarding user query text to local web client. Text: \"" + text + "\"");
         
         // STEP 1: FULL MIC RELEASE (Fix 1 Layered Teardown)
         if (speechRecognizer != null) {
-            try { speechRecognizer.stopListening(); } catch (Exception ignored) {}
-            try { speechRecognizer.cancel(); } catch (Exception ignored) {}
+            try { 
+                speechRecognizer.stopListening(); 
+                WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] processUserQuery: speechRecognizer.stopListening() completed.");
+            } catch (Exception ignored) {}
+            try { 
+                speechRecognizer.cancel(); 
+                WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] processUserQuery: speechRecognizer.cancel() completed.");
+            } catch (Exception ignored) {}
             try {
                 speechRecognizer.destroy();
-                WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] Destroyed active native SpeechRecognizer context on dispatch.");
+                WebAppInterface.DiagnosticLogger.log("[LIFECYCLE] processUserQuery: Destroyed active native SpeechRecognizer context on dispatch.");
             } catch (Exception e) {
                 Log.e(TAG, "Error releasing SpeechRecognizer: " + e.getMessage());
             }
@@ -528,15 +595,16 @@ public class VoiceAgentActivity extends AppCompatActivity {
 
             if (audioManager != null) {
                 audioManager.abandonAudioFocus(null);
-                WebAppInterface.DiagnosticLogger.log("[AUDIO] Audio focus abandoned successfully.");
+                WebAppInterface.DiagnosticLogger.log("[AUDIO] processUserQuery: Audio focus abandoned successfully.");
             }
         } catch (Exception e) {
             Log.e(TAG, "Audio focus release failed: " + e.getMessage());
         }
 
         // STEP 3: WAIT FOR HARDWARE RELEASE (Fix 1 - 1200ms Delay Buffer)
+        WebAppInterface.DiagnosticLogger.log("[WEBRTC] Scheduling delayed WebRTC stream dispatch with 1200ms buffer.");
         hardwareHandler.postDelayed(() -> {
-            WebAppInterface.DiagnosticLogger.log("[WEBRTC] Delayed Live session dispatch started after mic release buffer.");
+            WebAppInterface.DiagnosticLogger.log("[WEBRTC] Delayed Live session dispatch started after mic release buffer. Broadcasting query.");
 
             Intent intent = new Intent("PUTER_VOICE_INPUT");
             intent.putExtra("QUERY", text);
@@ -546,8 +614,11 @@ public class VoiceAgentActivity extends AppCompatActivity {
 
     public void speakAIResponse(String response) {
         if (tts != null) {
+            WebAppInterface.DiagnosticLogger.log("[TTS] Invoking speak for AI response. Length: " + response.length() + " chars.");
             // Flush ensures modern "Barge-in" interruption logic
             tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, "VOICE_AGENT_ID");
+        } else {
+            WebAppInterface.DiagnosticLogger.log("[TTS WARNING] speakAIResponse skipped: tts engine is NULL.");
         }
     }
 
@@ -558,8 +629,9 @@ public class VoiceAgentActivity extends AppCompatActivity {
     private void startListening() {
         // Bypasses native initialization entirely if WebRTC is actively streaming 
         // the microphone inside the WebView context (to prevent hardware lock conflicts).
+        WebAppInterface.DiagnosticLogger.log("startListening requested. checking active state -> isLiveSocketActive: " + WebAppInterface.isLiveSocketActive + " | isListening: " + isListening);
         if (WebAppInterface.isLiveSocketActive) {
-            WebAppInterface.DiagnosticLogger.log("[STT] Bypassing native SpeechRecognizer: WebView WebRTC stream is active.");
+            WebAppInterface.DiagnosticLogger.log("[STT] Bypassing native SpeechRecognizer initialization: WebView WebRTC stream is active.");
             return;
         }
 
@@ -569,10 +641,11 @@ public class VoiceAgentActivity extends AppCompatActivity {
                 if (speechRecognizer == null) {
                     speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
                     setupSTTListener();
-                    WebAppInterface.DiagnosticLogger.log("[STT] Re-initialized active SpeechRecognizer context.");
+                    WebAppInterface.DiagnosticLogger.log("[STT] Re-constructed active SpeechRecognizer context.");
                 }
                 speechRecognizer.startListening(recognizerIntent);
                 isListening = true;
+                WebAppInterface.DiagnosticLogger.log("[STT] SpeechRecognizer startListening() successfully initiated.");
             } catch (Exception e) {
                 Log.e(TAG, "Error starting recognizer: " + e.getMessage());
                 WebAppInterface.DiagnosticLogger.log("[ERROR] Speech recognizer initialization failed: " + e.getMessage());
@@ -584,16 +657,24 @@ public class VoiceAgentActivity extends AppCompatActivity {
                     speechRecognizer = null;
                 }
                 // Retry after a short delay if hardware is locked
+                WebAppInterface.DiagnosticLogger.log("[RECOVERY] Initialization failure caught. Rescheduling startListening in 500ms.");
                 hardwareHandler.postDelayed(() -> startListening(), 500);
             }
         }
     }
 
     private void toggleListening() {
+        WebAppInterface.DiagnosticLogger.log("toggleListening triggered. isListening currently: " + isListening);
         if (isListening) {
             if (speechRecognizer != null) {
-                try { speechRecognizer.cancel(); } catch (Exception e) {}
-                try { speechRecognizer.destroy(); } catch (Exception e) {}
+                try { 
+                    speechRecognizer.cancel(); 
+                    WebAppInterface.DiagnosticLogger.log("toggleListening: speechRecognizer.cancel() complete.");
+                } catch (Exception e) {}
+                try { 
+                    speechRecognizer.destroy(); 
+                    WebAppInterface.DiagnosticLogger.log("toggleListening: speechRecognizer.destroy() complete.");
+                } catch (Exception e) {}
                 speechRecognizer = null;
             }
             isListening = false;
@@ -604,6 +685,7 @@ public class VoiceAgentActivity extends AppCompatActivity {
                 tts.stop();
                 isAIspeaking = false;
                 isAiSpeakingOrPlaying = false;
+                WebAppInterface.DiagnosticLogger.log("toggleListening: Stopped active TTS playback prior to listing start.");
             }
             startListening();
         }
@@ -612,29 +694,50 @@ public class VoiceAgentActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity: onPause event triggered.");
         // Prevent mic hanging in background using isolated teardown blocks (Fix 4)
         if (speechRecognizer != null) {
-            try { speechRecognizer.stopListening(); } catch (Exception ignored) {}
-            try { speechRecognizer.cancel(); } catch (Exception ignored) {}
-            try { speechRecognizer.destroy(); } catch (Exception ignored) {}
+            WebAppInterface.DiagnosticLogger.log("onPause: Disposing native SpeechRecognizer instance...");
+            try { 
+                speechRecognizer.stopListening(); 
+                WebAppInterface.DiagnosticLogger.log("onPause: speechRecognizer.stopListening() complete.");
+            } catch (Exception ignored) {}
+            try { 
+                speechRecognizer.cancel(); 
+                WebAppInterface.DiagnosticLogger.log("onPause: speechRecognizer.cancel() complete.");
+            } catch (Exception ignored) {}
+            try { 
+                speechRecognizer.destroy(); 
+                WebAppInterface.DiagnosticLogger.log("onPause: speechRecognizer.destroy() complete.");
+            } catch (Exception ignored) {}
             speechRecognizer = null;
             isListening = false;
+            WebAppInterface.DiagnosticLogger.log("onPause: STT fully released.");
         }
     }
 
     @Override
     protected void onDestroy() {
-        WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity: Dashboard closed.");
+        WebAppInterface.DiagnosticLogger.log("VoiceAgentActivity: onDestroy event triggered. Dashboard closing.");
         // MODIFIED: Remove static telemetry hook to manage references
         WebAppInterface.DiagnosticLogger.setListener(null);
 
-        if (aiResponseReceiver != null) unregisterReceiver(aiResponseReceiver);
+        if (aiResponseReceiver != null) {
+            try {
+                unregisterReceiver(aiResponseReceiver);
+                WebAppInterface.DiagnosticLogger.log("onDestroy: Unregistered aiResponseReceiver.");
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering receiver: " + e.getMessage());
+            }
+        }
         if (speechRecognizer != null) {
+            WebAppInterface.DiagnosticLogger.log("onDestroy: speechRecognizer cleanup starting...");
             try { speechRecognizer.cancel(); } catch (Exception e) {}
             try { speechRecognizer.destroy(); } catch (Exception e) {}
             speechRecognizer = null;
         }
         if (tts != null) {
+            WebAppInterface.DiagnosticLogger.log("onDestroy: tts engine cleanup starting...");
             tts.stop();
             tts.shutdown();
         }
