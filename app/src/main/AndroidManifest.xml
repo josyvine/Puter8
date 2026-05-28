@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- REQUIREMENT: New Permissions for Background Watcher Status and Sync Operations -->
+    <!-- Requirements for Background Watcher Status and Sync Operations -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -44,17 +44,9 @@
             android:theme="@style/Theme.Puter.Light">
         </activity>
 
-        <!-- FIXED: Configured VoiceAgentActivity to use a dialog theme. 
-             This keeps MainActivity visible and active in the background, 
-             preventing the OS from pausing JavaScript execution and Web Audio contexts. -->
-        <activity
-            android:name=".VoiceAgentActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.Light.Dialog">
-        </activity>
+        <!-- DELETED VoiceAgentActivity: Removed to stop hardware deadlocks -->
 
-        <!-- REQUIREMENT: Register background query watcher service securely -->
+        <!-- Requirement: Register background query watcher service -->
         <service
             android:name=".QueryWatcherService"
             android:foregroundServiceType="dataSync"
