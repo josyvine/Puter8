@@ -247,29 +247,16 @@ public class MyWebChromeClient extends WebChromeClient {
     public void onPermissionRequest(final PermissionRequest request) {
         Log.d(TAG, "onPermissionRequest: Processing hardware capture access permission synchronously.");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                String[] requestedResources = request.getResources();
-                java.util.List<String> grantedResources = new java.util.ArrayList<>();
-                
-                for (String resource : requestedResources) {
-                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
-                        grantedResources.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
-                    } else if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
-                        grantedResources.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE);
-                    }
-                }
-                
-                if (!grantedResources.isEmpty()) {
-                    request.grant(grantedResources.toArray(new String[0]));
-                    Log.d(TAG, "onPermissionRequest: Successfully granted resources: " + grantedResources);
-                } else {
+            activity.runOnUiThread(() -> {
+                try {
+                    String[] requestedResources = request.getResources();
+                    request.grant(requestedResources);
+                    Log.d(TAG, "onPermissionRequest: Successfully granted resources: " + java.util.Arrays.toString(requestedResources));
+                } catch (Exception e) {
+                    Log.e(TAG, "onPermissionRequest: Failed to grant permission synchronously. Error: " + e.getMessage());
                     request.deny();
-                    Log.d(TAG, "onPermissionRequest: No recognized hardware capture resources found in request.");
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "onPermissionRequest: Failed to grant permission synchronously. Error: " + e.getMessage());
-                request.deny();
-            }
+            });
         }
     }
 
