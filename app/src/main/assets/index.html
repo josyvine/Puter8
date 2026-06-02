@@ -3132,7 +3132,9 @@
                             }
                         }
                     },
-                    tools: useSearch ? [{ googleSearch: {} }] : undefined
+                    tools: useSearch ? [{ googleSearch: {} }] : undefined,
+                    inputAudioTranscription: {},
+                    outputAudioTranscription: {}
                 }
             };
             liveWs.send(JSON.stringify(setupMessage));
@@ -3166,8 +3168,12 @@
                         if (window.AndroidInterface.setLiveSocketActive) {
                             window.AndroidInterface.setLiveSocketActive(true);
                         }
+                        window.AndroidInterface.showToast("Connected to Gemini Live Model");
                     }
                     initMicrophoneCaptureLive();
+
+                    // Visual Feedback in Chat log indicating successful connection
+                    appendChat("System", "🟢 Connected to Gemini Live Model", false, []);
 
                     // Dispatch any stored/pending query that initiated the connection
                     if (pendingLiveQuery) {
@@ -3228,6 +3234,24 @@
                                 scheduleAudioChunkPlayLive(part.inlineData.data);
                             }
                         }
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+
+                    if (content.outputTranscription && content.outputTranscription.text) {
+                        const msgId = "live-msg-transcript-" + Date.now();
+                        if (!currentLiveBotSpan) {
+                            const log = document.getElementById('puterChatLog');
+                            const div = document.createElement('div');
+                            div.className = "message bot-message";
+                            div.id = msgId;
+                            div.innerHTML = `<div class="message-content"><b>Bot:</b><br><span id="live-span-${msgId}"></span></div>`;
+                            log.appendChild(div);
+                            currentLiveBotSpan = document.getElementById(`live-span-${msgId}`);
+                        }
+
+                        currentLiveBotSpan.innerText += content.outputTranscription.text;
+                        chatHistory.push({sender: "Bot", text: content.outputTranscription.text, id: msgId, files: []});
+                        localStorage.setItem('puter_chat_history_' + currentSessionId, JSON.stringify(chatHistory));
                         window.scrollTo(0, document.body.scrollHeight);
                     }
 
@@ -3463,7 +3487,12 @@
     function disconnectWebSocketLive() {
         if (window.AndroidInterface) {
             window.AndroidInterface.logDiagnostic("disconnectWebSocketLive sequence initiated.", "NETWORK");
+            window.AndroidInterface.showToast("Disconnected from Live Model");
         }
+
+        // Visual Feedback in Chat log indicating disconnection
+        appendChat("System", "🔴 Disconnected from Live Model", false, []);
+
         // Gated call to prevent premature STT activations [1]
         if (!window.isConnectingLiveSocket) {
             if (window.AndroidInterface && window.AndroidInterface.setLiveSocketActive) {
@@ -3553,6 +3582,9 @@
         activeSources = [];
         nextPlayTime = 0;
     }
+
+    // Reset current live tracking element cleanly
+    let currentLiveTrackingSpan = null;
 
     function readAloud(elementId) {
         const el = document.getElementById(elementId);
